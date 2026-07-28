@@ -6,7 +6,7 @@
   <title>RSVP Search</title>
   <style>
     body { font-family: Arial, sans-serif; max-width: 760px; margin: 40px auto; padding: 20px; line-height: 1.5; }
-    input, select, button { width: 100%; padding: 12px; margin-top: 8px; margin-bottom: 16px; font-size: 16px; box-sizing: border-box; }
+    input, select, textarea, button { width: 100%; padding: 12px; margin-top: 8px; margin-bottom: 16px; font-size: 16px; box-sizing: border-box; }
     .card { border: 1px solid #ddd; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
     .result { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin-top: 12px; }
     .muted { color: #666; }
@@ -15,6 +15,7 @@
     .radio-row label { display: flex; align-items: center; gap: 8px; }
     .radio-row input { width: auto; margin: 0; }
     .success { color: green; font-weight: bold; }
+    .error { color: #b00020; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -88,10 +89,11 @@
 
             <div id="guestCountWrap" class="hidden">
               <label for="guestCount"><strong>How many will attend?</strong></label>
-              <select id="guestCount">
-                ${options}
-              </select>
+              <select id="guestCount">${options}</select>
             </div>
+
+            <label for="note">Note (optional)</label>
+            <textarea id="note" rows="3" placeholder="Dietary restrictions, message, etc."></textarea>
 
             <button id="submitRsvpBtn" type="button">Submit RSVP</button>
             <div id="submitMsg" class="muted"></div>
@@ -105,24 +107,50 @@
 
         radios.forEach(radio => {
           radio.addEventListener('change', () => {
-            guestCountWrap.classList.toggle('hidden', radio.value !== 'yes');
+            const checked = document.querySelector('input[name="attending"]:checked');
+            guestCountWrap.classList.toggle('hidden', !checked || checked.value !== 'yes');
           });
         });
 
-        submitBtn.addEventListener('click', () => {
+        submitBtn.addEventListener('click', async () => {
           const selected = document.querySelector('input[name="attending"]:checked');
+          const note = document.getElementById('note').value.trim();
+
           if (!selected) {
+            submitMsg.className = 'error';
             submitMsg.textContent = 'Please choose Yes or No.';
             return;
           }
 
-          if (selected.value === 'yes') {
-            const guestCount = document.getElementById('guestCount').value;
+          const payload = {
+            attending: selected.value,
+            attendees: selected.value === 'yes' ? Number(document.getElementById('guestCount').value) : 0,
+            note
+          };
+
+          submitMsg.className = 'muted';
+          submitMsg.textContent = 'Submitting RSVP...';
+
+          try {
+            const res = await fetch('/api/rsvp/' + g.id, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+              submitMsg.className = 'error';
+              submitMsg.textContent = data.error || 'Failed to submit RSVP.';
+              return;
+            }
+
             submitMsg.className = 'success';
-            submitMsg.textContent = `Thanks! You selected Yes, attending with ${guestCount} guest(s).`;
-          } else {
-            submitMsg.className = 'success';
-            submitMsg.textContent = 'Thanks! You selected No.';
+            submitMsg.textContent = 'Thank you! Your RSVP has been submitted.';
+          } catch (err) {
+            submitMsg.className = 'error';
+            submitMsg.textContent = 'Network error. Please try again.';
           }
         });
       } catch (err) {
