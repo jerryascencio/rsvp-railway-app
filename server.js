@@ -1,7 +1,11 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -11,12 +15,24 @@ const dataDir = path.join(__dirname, 'data');
 const guestsFile = path.join(dataDir, 'guests.json');
 const responsesFile = path.join(dataDir, 'responses.json');
 
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
 app.use(express.json({ limit: '5mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 function ensure(file, fallback) {
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  if (!fs.existsSync(file)) fs.writeFileSync(file, JSON.stringify(fallback, null, 2));
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, JSON.stringify(fallback, null, 2));
+  }
 }
 
 ensure(guestsFile, []);
@@ -27,7 +43,9 @@ const readResponses = () => JSON.parse(fs.readFileSync(responsesFile, 'utf8'));
 const writeResponses = (data) => fs.writeFileSync(responsesFile, JSON.stringify(data, null, 2));
 const normalizePhone = (v = '') => String(v).replace(/\D/g, '');
 
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true });
+});
 
 app.get('/api/guests', (req, res) => {
   const first = String(req.query.first || '').trim().toLowerCase();
@@ -36,43 +54,77 @@ app.get('/api/guests', (req, res) => {
   const guests = readGuests();
   const responses = readResponses();
 
-  const matches = guests.filter((g) => {
-    const gf = String(g.firstName || '').toLowerCase();
-    const gl = String(g.lastName || '').toLowerCase();
-    const gn = String(g.name || '').toLowerCase();
-    const gp = normalizePhone(g.phone || '');
-    if (phone) return gp.includes(phone);
-    const firstOk = !first || gf.includes(first) || gn.includes(first);
-    const lastOk = !last || gl.includes(last) || gn.includes(last);
-    return firstOk && lastOk;
-  }).map((g) => ({ ...g, response: responses[g.id] || null }));
+  const matches = guests
+    .filter((g) => {
+      const gf = String(g.firstName || '').toLowerCase();
+      const gl = String(g.lastName || '').toLowerCase();
+      const gn = String(g.name || '').toLowerCase();
+      const gp = normalizePhone(g.phone || '');
+
+      if (phone) return gp.includes(phone);
+
+      const firstOk = !first || gf.includes(first) || gn.includes(first);
+      const lastOk = !last || gl.includes(last) || gn.includes(last);
+      return firstOk && lastOk;
+    })
+    .map((g) => ({
+      ...g,
+      response: responses[g.id] || null
+    }));
 
   res.json(matches);
 });
 
-app.post('/api/rsvp/:guestId', (req, res) => {
-  const guests = readGuests();
-  const guest = guests.find((g) => g.id === req.params.guestId);
-  if (!guest) return res.status(404).json({ error: 'Guest not found' });
+app.post('/api/rsvp/:guestId', async (req, res) => {
+  try {
+    const guests = readGuests();
+    const guest = guests.find((g) => g.id === req.params.guestId);
 
-  const attending = req.body?.attending;
-  const attendees = Number(req.body?.attendees || 0);
-  const note = String(req.body?.note || '');
+    if (!guest) {
+      return res.status(404).json({ error: 'Guest not found' });
+    }
 
-  if (!['yes', 'no'].includes(attending)) return res.status(400).json({ error: 'Choose yes or no' });
-  if (attending === 'yes' && (attendees < 1 || attendees > Number(guest.invites || 0))) {
-    return res.status(400).json({ error: 'Attendee count exceeds allowed seats' });
+    const attending = req.body?.attending;
+    const attendees = Number(req.body?.attendees || 0);
+    const note = String(req.body?.note || '');
+
+    if (!['yes', 'no'].includes(attending)) {
+      return res.status(400).json({ error: 'Choose yes or no' });
+    }
+
+    if (attending === 'yes' && (attendees < 1 || attendees > Number(guest.invites || 0))) {
+      return res.status(400).json({ error: 'Attendee count exceeds allowed seats' });
+    }
+
+    const responses = readResponses();
+    responses[guest.id] = {
+      attending,
+      attendees: attending === 'yes' ? attendees : 0,
+      note,
+      updatedAt: new Date().toISOString()
+    };
+    writeResponses(responses);
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: process.env.NOTIFY_EMAIL,
+      subject: `New RSVP from ${guest.name}`,
+      text: [
+        `Guest: ${guest.name}`,
+        `Phone: ${guest.phone || ''}`,
+        `Email: ${guest.email || ''}`,
+        `Invited: ${guest.invites}`,
+        `Attending: ${attending}`,
+        `Attendees: ${attending === 'yes' ? attendees : 0}`,
+        `Note: ${note || 'None'}`
+      ].join('\n')
+    });
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('RSVP email error:', error);
+    res.status(500).json({ error: 'Failed to submit RSVP' });
   }
-
-  const responses = readResponses();
-  responses[guest.id] = {
-    attending,
-    attendees: attending === 'yes' ? attendees : 0,
-    note,
-    updatedAt: new Date().toISOString()
-  };
-  writeResponses(responses);
-  res.json({ ok: true });
 });
 
 app.get('*', (_req, res) => {
