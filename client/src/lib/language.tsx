@@ -219,7 +219,7 @@ export const translations = {
       en: "The dear friends and family accompanying Leah",
       es: "Los queridos amigos y familiares que acompañan a Leah",
     },
-    mainChambelanLabel: { en: "Chamberlain of Honor", es: "Chambelán de Honor" },
+    mainChambelanLabel: { en: "Chambelán de Honor", es: "Chambelán de Honor" },
     couplesLabel: { en: "Damas & Chambelanes", es: "Damas y Chambelanes" },
   },
   dress: {
