@@ -15,7 +15,7 @@ export const translations = {
   hero: {
     invited: { en: "You are cordially invited", es: "Están cordialmente invitados" },
     line1: { en: "to celebrate with the", es: "a celebrar con la" },
-    line2: { en: "Espinoza Family at the", es: "Familia Espinoza en la" },
+    line2: { en: "Espinoza De Anda Family at the", es: "Familia Espinoza De Anda en la" },
     title: { en: "Quinceañera", es: "Quinceañera" },
     of: { en: "of", es: "de" },
     rsvpBy: { en: "RSVP by", es: "Confirme antes del" },
@@ -127,8 +127,8 @@ export const translations = {
     eyebrow: { en: "WITH LOVE", es: "CON AMOR" },
     heading: { en: "A Celebration of Grace & Joy", es: "Una Celebración de Gracia y Alegría" },
     body: {
-      en: "The Espinoza Family joyfully invites you to celebrate Leah's fifteenth birthday. Join us as we give thanks for the beautiful young woman she has become and gather for an unforgettable evening filled with love, laughter, faith, and cherished traditions.",
-      es: "La Familia Espinoza los invita con alegría a celebrar los quince años de Leah. Acompáñenos a dar gracias por la hermosa joven que se ha convertido y a reunirnos para una velada inolvidable llena de amor, risas, fe y tradiciones queridas.",
+      en: "The Espinoza De Anda Family joyfully invites you to celebrate Leah's fifteenth birthday. Join us as we give thanks for the beautiful young woman she has become and gather for an unforgettable evening filled with love, laughter, faith, and cherished traditions.",
+      es: "La Familia Espinoza De Anda los invita con alegría a celebrar los quince años de Leah. Acompáñenos a dar gracias por la hermosa joven que se ha convertido y a reunirnos para una velada inolvidable llena de amor, risas, fe y tradiciones queridas.",
     },
   },
   schedule: {
@@ -200,7 +200,7 @@ export const translations = {
     rosegold: { en: "Rose Gold", es: "Oro Rosa" },
   },
   footer: {
-    love: { en: "With love, the Espinoza Family", es: "Con cariño, la Familia Espinoza" },
+    love: { en: "With love, the Espinoza De Anda Family", es: "Con cariño, la Familia Espinoza De Anda" },
     hostLogin: { en: "Host Login", es: "Acceso Anfitrión" },
   },
 } as const;
