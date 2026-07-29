@@ -189,6 +189,13 @@ export const translations = {
     },
     hamptonArea: { en: "Panorama City area, California", es: "Zona de Panorama City, California" },
   },
+  partyMember: {
+    // e.g. "Stefanie — part of Gerardo Ascencio Jr's party"
+    template: {
+      en: "{name} — part of {primary}'s party",
+      es: "{name} — parte del grupo de {primary}",
+    },
+  },
   padrinos: {
     eyebrow: { en: "WITH GRATITUDE", es: "CON GRATITUD" },
     heading: { en: "Padrinos & Madrinas", es: "Padrinos y Madrinas" },

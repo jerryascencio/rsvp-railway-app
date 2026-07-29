@@ -511,33 +511,69 @@ export default function Home() {
                   : t("search.which")}
               </p>
               <ul className="mt-4 space-y-3">
-                {matches.map((m) => (
-                  <li key={m.id}>
-                    <button
-                      type="button"
-                      onClick={() => selectGuest(m)}
-                      className="w-full rounded-lg border border-[hsl(28_31%_55%/.3)] bg-[hsl(28_60%_98%)] px-5 py-4 text-left transition hover:border-[hsl(346_37%_56%/.6)] hover:bg-white"
-                      data-testid={`button-select-guest-${m.id}`}
-                    >
-                      <span className="font-display block text-lg text-[hsl(19_17%_24%)]">
-                        {m.fullName}
-                      </span>
-                      {householdLabel(m, t, { includePartyOf: false }) && (
-                        <span
-                          className="mt-0.5 block font-display text-sm italic text-[hsl(19_14%_45%)]"
-                          data-testid={`text-household-${m.id}`}
-                        >
-                          {householdLabel(m, t, { includePartyOf: false })}
+                {matches.map((m) => {
+                  // If the search matched an additional household member (not the
+                  // primary contact), surface THAT person's name as the headline
+                  // and clarify they belong to the primary's party.
+                  const needle = query.trim().toLowerCase();
+                  const primaryHit =
+                    !!needle &&
+                    ((m.firstName || "").toLowerCase().includes(needle) ||
+                      (m.lastName || "").toLowerCase().includes(needle) ||
+                      `${m.firstName} ${m.lastName}`.toLowerCase().includes(needle) ||
+                      (m.email || "").toLowerCase().includes(needle));
+                  const matchedExtra =
+                    !primaryHit && needle
+                      ? (m.additionalNames || []).find((n) => {
+                          const f = (n.firstName || "").toLowerCase();
+                          const l = (n.lastName || "").toLowerCase();
+                          const full = `${n.firstName} ${n.lastName}`.trim().toLowerCase();
+                          return (
+                            (f && f.includes(needle)) ||
+                            (l && l.includes(needle)) ||
+                            (full && full.includes(needle))
+                          );
+                        })
+                      : undefined;
+                  const headline = matchedExtra
+                    ? `${matchedExtra.firstName}${
+                        matchedExtra.lastName ? " " + matchedExtra.lastName : ""
+                      }`.trim()
+                    : m.fullName;
+                  const subLine = matchedExtra
+                    ? t("partyMember.template", {
+                        name: matchedExtra.firstName || headline,
+                        primary: m.fullName,
+                      })
+                    : householdLabel(m, t, { includePartyOf: false });
+                  return (
+                    <li key={m.id}>
+                      <button
+                        type="button"
+                        onClick={() => selectGuest(m)}
+                        className="w-full rounded-lg border border-[hsl(28_31%_55%/.3)] bg-[hsl(28_60%_98%)] px-5 py-4 text-left transition hover:border-[hsl(346_37%_56%/.6)] hover:bg-white"
+                        data-testid={`button-select-guest-${m.id}`}
+                      >
+                        <span className="font-display block text-lg text-[hsl(19_17%_24%)]">
+                          {headline}
                         </span>
-                      )}
-                      {m.existing && (
-                        <span className="label-caps text-[10px]">
-                          {t("search.alreadyResponded")}
-                        </span>
-                      )}
-                    </button>
-                  </li>
-                ))}
+                        {subLine && (
+                          <span
+                            className="mt-0.5 block font-display text-sm italic text-[hsl(19_14%_45%)]"
+                            data-testid={`text-household-${m.id}`}
+                          >
+                            {subLine}
+                          </span>
+                        )}
+                        {m.existing && (
+                          <span className="label-caps text-[10px]">
+                            {t("search.alreadyResponded")}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
               {matches.length === 1 && (
                 <button
