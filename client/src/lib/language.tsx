@@ -189,6 +189,26 @@ export const translations = {
     },
     hamptonArea: { en: "Panorama City area, California", es: "Zona de Panorama City, California" },
   },
+  guestList: {
+    heading: {
+      en: "Who from your party can join us?",
+      es: "¿Quiénes de su grupo nos acompañarán?",
+    },
+    sub: {
+      en: "Please mark each person as attending or not attending.",
+      es: "Por favor marque a cada persona como asistir\u00e1 o no asistir\u00e1.",
+    },
+    attending: { en: "Attending", es: "Asistir\u00e1" },
+    notAttending: { en: "Not attending", es: "No asistir\u00e1" },
+    unanswered: {
+      en: "Please mark everyone in your party.",
+      es: "Por favor marque a todos los miembros de su grupo.",
+    },
+    summary: {
+      en: "{a} attending, {d} not attending.",
+      es: "{a} asistir\u00e1n, {d} no asistir\u00e1n.",
+    },
+  },
   partyMember: {
     // e.g. "Stefanie — part of Gerardo Ascencio Jr's party"
     template: {

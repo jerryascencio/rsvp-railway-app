@@ -296,6 +296,10 @@ export default function Home() {
   const [guest, setGuest] = useState<Match | null>(null);
   const [attending, setAttending] = useState(0);
   const [declined, setDeclined] = useState(0);
+  // Per-person attendance for households with named members.
+  // Keys are stable identifiers: "primary" for the main contact, and
+  // "extra-<index>" for each additional household member.
+  const [personStatus, setPersonStatus] = useState<Record<string, "yes" | "no" | null>>({});
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -317,12 +321,56 @@ export default function Home() {
 
   function selectGuest(m: Match) {
     setGuest(m);
-    const a = m.existing ? m.existing.attendees : m.invites;
-    setAttending(a);
-    setDeclined(m.existing ? m.existing.declinedCount : m.invites - a);
+    const extras = (m.additionalNames || []).filter((n) => n.firstName || n.lastName);
+    const hasNamedList = extras.length > 0;
+
+    if (hasNamedList) {
+      // Build a per-person map. If they previously RSVPed, we don't know WHICH
+      // people attended, only totals — so pre-fill "yes" for the first N people
+      // (attendees count) and "no" for the rest. Guests can then adjust.
+      const totalNamed = 1 + extras.length; // primary + additional
+      const targetAttending = m.existing ? m.existing.attendees : totalNamed;
+      const initial: Record<string, "yes" | "no" | null> = {};
+      let remaining = targetAttending;
+      const keys = ["primary", ...extras.map((_, i) => `extra-${i}`)];
+      for (const k of keys) {
+        if (remaining > 0) {
+          initial[k] = "yes";
+          remaining -= 1;
+        } else {
+          initial[k] = "no";
+        }
+      }
+      setPersonStatus(initial);
+      setAttending(targetAttending);
+      setDeclined(m.invites - targetAttending);
+    } else {
+      const a = m.existing ? m.existing.attendees : m.invites;
+      setAttending(a);
+      setDeclined(m.existing ? m.existing.declinedCount : m.invites - a);
+      setPersonStatus({});
+    }
+
     setEmail(m.existing?.guestEmail || m.email || "");
     setNote(m.existing?.note || "");
     setError(null);
+  }
+
+  // Update one person in the checklist, then recompute attending/declined totals.
+  function setPersonAttendance(key: string, status: "yes" | "no") {
+    if (!guest) return;
+    const extras = (guest.additionalNames || []).filter((n) => n.firstName || n.lastName);
+    const keys = ["primary", ...extras.map((_, i) => `extra-${i}`)];
+    const next: Record<string, "yes" | "no" | null> = { ...personStatus, [key]: status };
+    let a = 0;
+    let d = 0;
+    for (const k of keys) {
+      if (next[k] === "yes") a += 1;
+      else if (next[k] === "no") d += 1;
+    }
+    setPersonStatus(next);
+    setAttending(a);
+    setDeclined(d);
   }
 
   async function runSearch(e?: React.FormEvent) {
@@ -351,7 +399,11 @@ export default function Home() {
   async function submitRsvp(e: React.FormEvent) {
     e.preventDefault();
     if (!guest) return;
-    if (attending + declined !== guest.invites) return;
+    const extrasCount = (guest.additionalNames || []).filter(
+      (n) => n.firstName || n.lastName,
+    ).length;
+    const expectedTotal = extrasCount > 0 ? 1 + extrasCount : guest.invites;
+    if (attending + declined !== expectedTotal) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -441,7 +493,18 @@ export default function Home() {
 
   /* ------------------------------------------------------------- main view */
   const sum = guest ? attending + declined : 0;
-  const sumOk = guest ? sum === guest.invites : false;
+  // For households with a named guest list, "complete" means everyone has been
+  // marked yes/no. For plus-N households, we still require attending + declined
+  // to equal the invited count.
+  const hasNamedGuestList = guest
+    ? (guest.additionalNames || []).some((n) => n.firstName || n.lastName)
+    : false;
+  const sumOk = guest
+    ? hasNamedGuestList
+      ? (1 + (guest.additionalNames || []).filter((n) => n.firstName || n.lastName).length) ===
+        attending + declined
+      : sum === guest.invites
+    : false;
 
   return (
     <WideShell>
@@ -628,34 +691,123 @@ export default function Home() {
             </div>
 
             <form onSubmit={submitRsvp} className="mt-7 space-y-6">
-              <div className="grid gap-5 sm:grid-cols-2">
-                <Stepper
-                  label={t("rsvp.attendingLabel")}
-                  value={attending}
-                  max={guest.invites}
-                  testId="attending"
-                  onChange={(v) => {
-                    setAttending(v);
-                    setDeclined(guest.invites - v);
-                  }}
-                />
-                <Stepper
-                  label={t("rsvp.declinedLabel")}
-                  value={declined}
-                  max={guest.invites}
-                  testId="declined"
-                  onChange={setDeclined}
-                />
-              </div>
+              {(() => {
+                const extras = (guest.additionalNames || []).filter(
+                  (n) => n.firstName || n.lastName,
+                );
+                const hasNamedGuests = extras.length > 0;
 
-              {!sumOk && (
-                <p
-                  className="rounded-md border border-[hsl(28_31%_55%/.4)] bg-[hsl(28_60%_97%)] px-4 py-3 text-center text-sm text-[hsl(2_55%_38%)]"
-                  data-testid="text-sum-warning"
-                >
-                  {t("rsvp.sumWarning")} {guest.invites}.
-                </p>
-              )}
+                if (hasNamedGuests) {
+                  const people: { key: string; name: string }[] = [
+                    { key: "primary", name: guest.fullName },
+                    ...extras.map((n, i) => ({
+                      key: `extra-${i}`,
+                      name: [n.firstName, n.lastName].filter(Boolean).join(" "),
+                    })),
+                  ];
+                  const anyUnanswered = people.some((p) => !personStatus[p.key]);
+
+                  return (
+                    <div>
+                      <p className="font-display text-lg text-[hsl(346_33%_46%)]">
+                        {t("guestList.heading")}
+                      </p>
+                      <p className="mt-1 text-sm text-[hsl(19_14%_45%)]">
+                        {t("guestList.sub")}
+                      </p>
+                      <ul className="mt-4 space-y-3">
+                        {people.map((p) => {
+                          const status = personStatus[p.key];
+                          return (
+                            <li
+                              key={p.key}
+                              className="flex flex-col gap-3 rounded-lg border border-[hsl(28_31%_80%)] bg-[hsl(28_60%_98%)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                              data-testid={`row-guest-${p.key}`}
+                            >
+                              <span className="font-display text-base text-[hsl(19_17%_28%)]">
+                                {p.name}
+                              </span>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setPersonAttendance(p.key, "yes")}
+                                  className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                                    status === "yes"
+                                      ? "border-[hsl(346_37%_56%)] bg-[hsl(346_37%_56%)] text-white shadow-sm"
+                                      : "border-[hsl(28_31%_65%)] bg-white text-[hsl(19_17%_28%)] hover:border-[hsl(346_37%_56%)]"
+                                  }`}
+                                  data-testid={`button-attending-${p.key}`}
+                                >
+                                  {t("guestList.attending")}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPersonAttendance(p.key, "no")}
+                                  className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                                    status === "no"
+                                      ? "border-[hsl(19_17%_28%)] bg-[hsl(19_17%_28%)] text-white shadow-sm"
+                                      : "border-[hsl(28_31%_65%)] bg-white text-[hsl(19_17%_28%)] hover:border-[hsl(19_17%_28%)]"
+                                  }`}
+                                  data-testid={`button-not-attending-${p.key}`}
+                                >
+                                  {t("guestList.notAttending")}
+                                </button>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      {anyUnanswered ? (
+                        <p
+                          className="mt-3 rounded-md border border-[hsl(28_31%_55%/.4)] bg-[hsl(28_60%_97%)] px-4 py-3 text-center text-sm text-[hsl(2_55%_38%)]"
+                          data-testid="text-guest-list-warning"
+                        >
+                          {t("guestList.unanswered")}
+                        </p>
+                      ) : (
+                        <p
+                          className="mt-3 text-center text-sm italic text-[hsl(19_14%_45%)]"
+                          data-testid="text-guest-list-summary"
+                        >
+                          {t("guestList.summary", { a: attending, d: declined })}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <Stepper
+                        label={t("rsvp.attendingLabel")}
+                        value={attending}
+                        max={guest.invites}
+                        testId="attending"
+                        onChange={(v) => {
+                          setAttending(v);
+                          setDeclined(guest.invites - v);
+                        }}
+                      />
+                      <Stepper
+                        label={t("rsvp.declinedLabel")}
+                        value={declined}
+                        max={guest.invites}
+                        testId="declined"
+                        onChange={setDeclined}
+                      />
+                    </div>
+                    {!sumOk && (
+                      <p
+                        className="rounded-md border border-[hsl(28_31%_55%/.4)] bg-[hsl(28_60%_97%)] px-4 py-3 text-center text-sm text-[hsl(2_55%_38%)]"
+                        data-testid="text-sum-warning"
+                      >
+                        {t("rsvp.sumWarning")} {guest.invites}.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
 
               <div>
                 <label
