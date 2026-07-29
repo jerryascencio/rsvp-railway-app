@@ -9,7 +9,6 @@ import {
   Divider,
   SmallFlourish,
   Butterfly,
-  FloralFrame,
   DateBlock,
   EventDetails,
 } from "@/components/ornaments";
@@ -83,7 +82,8 @@ function householdLabel(
 function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   return (
-    <div className="invite-page relative min-h-screen font-sans text-foreground">
+    <div className="invite-page relative min-h-screen overflow-hidden font-sans text-foreground">
+      <PageCornerFlorals />
       <LanguageToggle />
       <div className="relative z-10 mx-auto w-full max-w-2xl px-6 py-12 sm:px-10 sm:py-16">
         {children}
@@ -109,7 +109,8 @@ function Shell({ children }: { children: React.ReactNode }) {
 function WideShell({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   return (
-    <div className="invite-page relative min-h-screen font-sans text-foreground">
+    <div className="invite-page relative min-h-screen overflow-hidden font-sans text-foreground">
+      <PageCornerFlorals />
       <LanguageToggle />
       <div className="relative z-10 mx-auto w-full max-w-5xl px-5 py-12 sm:px-10 sm:py-16">
         {children}
@@ -145,6 +146,21 @@ function RsvpByBadge() {
 
 /* ----------------------------------------------------------------- hero */
 
+/**
+ * Absolute-positioned floral bouquets anchored to the top corners of the entire
+ * invitation page (not just the hero card). Sized responsively.
+ */
+function PageCornerFlorals() {
+  const base =
+    "pointer-events-none select-none absolute top-0 z-0 w-[36%] max-w-[280px] sm:max-w-[360px] opacity-95";
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-0">
+      <img src="/floral-tl.png" alt="" className={`${base} left-0`} />
+      <img src="/floral-tr.png" alt="" className={`${base} right-0`} />
+    </div>
+  );
+}
+
 function Hero() {
   const { t } = useLanguage();
   return (
@@ -152,7 +168,6 @@ function Hero() {
       className="relative overflow-hidden rounded-2xl text-center"
       data-testid="section-hero"
     >
-      <FloralFrame topOnly />
       <div className="relative z-10 px-2 pb-2 pt-2">
         <Tiara className="mx-auto w-48 sm:w-64" />
         <p className="label-caps mt-6">{t("hero.invited")}</p>
@@ -321,7 +336,9 @@ export default function Home() {
       setMatches(data.matches);
       setSearched(true);
       setGuest(null);
-      if (data.matches.length === 1) selectGuest(data.matches[0]);
+      // Always require explicit confirmation, even for a single match, so guests
+      // can catch a wrong-person auto-select before filling out the form.
+      // (No auto-select here.)
     } catch (err: any) {
       setError(err?.message || t("search.genericError"));
     } finally {
@@ -484,10 +501,12 @@ export default function Home() {
             </p>
           )}
 
-          {searched && matches.length > 1 && !guest && (
+          {searched && matches.length >= 1 && !guest && (
             <div className="mt-8" data-testid="section-choose">
               <p className="font-display text-center text-lg text-[hsl(346_33%_46%)]">
-                {t("search.which")}
+                {matches.length === 1
+                  ? t("search.confirmYou")
+                  : t("search.which")}
               </p>
               <ul className="mt-4 space-y-3">
                 {matches.map((m) => (
@@ -518,6 +537,16 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
+              {matches.length === 1 && (
+                <button
+                  type="button"
+                  onClick={reset}
+                  className="mt-4 w-full text-center font-display text-sm italic text-[hsl(19_14%_45%)] underline decoration-[hsl(346_37%_56%/.4)] underline-offset-4 hover:text-[hsl(346_33%_46%)]"
+                  data-testid="button-search-again"
+                >
+                  {t("search.noSearchAgain")}
+                </button>
+              )}
             </div>
           )}
         </Card>

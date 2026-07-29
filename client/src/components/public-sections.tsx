@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Building2,
   Church,
   Heart,
   MapPin,
@@ -10,6 +9,10 @@ import {
 import { Divider, SmallFlourish } from "@/components/ornaments";
 import { useLanguage } from "@/lib/language";
 import leahPhotoUrl from "@/assets/leah.jpg";
+import hotelHiltonUrl from "@/assets/hotel-hilton.jpg";
+import hotelSheratonUrl from "@/assets/hotel-sheraton.jpg";
+import hotelCourtyardUrl from "@/assets/hotel-courtyard.jpg";
+import hotelHamptonUrl from "@/assets/hotel-hampton.jpg";
 
 /* -------------------------------------------------------- shared styling */
 
@@ -373,14 +376,15 @@ function VenueCard({
   name,
   address,
   parking,
-  viewOnMap,
 }: {
   label: string;
   name: string;
   address: string;
   parking: string;
-  viewOnMap: string;
 }) {
+  const q = encodeURIComponent(address);
+  // Google Maps free embed (no API key required for the standard /maps?output=embed endpoint).
+  const mapSrc = `https://maps.google.com/maps?q=${q}&z=15&output=embed`;
   return (
     <div className={`${CARD} px-6 py-7 sm:px-7`} data-testid={`card-venue-${name}`}>
       <p className="label-caps" style={{ letterSpacing: "0.2em" }}>
@@ -396,15 +400,30 @@ function VenueCard({
         {parking}
       </p>
 
-      <div
-        className="mt-5 flex h-20 items-center justify-center rounded-lg border border-dashed border-[hsl(28_31%_55%/.5)]"
-        style={{
-          background:
-            "linear-gradient(135deg, hsl(28 45% 94%) 0%, hsl(346 37% 90%) 100%)",
-        }}
+      <a
+        href={`https://www.google.com/maps/search/?api=1&query=${q}`}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-5 block overflow-hidden rounded-lg border border-[hsl(28_31%_55%/.4)] shadow-[0_10px_30px_-20px_hsl(19_20%_35%/.4)]"
+        aria-label={`Open ${name} in Google Maps`}
+        data-testid={`map-preview-${name}`}
       >
-        <span className="font-display text-base text-[hsl(346_33%_44%)]">{viewOnMap}</span>
-      </div>
+        <div className="relative h-[180px] w-full">
+          <iframe
+            src={mapSrc}
+            title={`Map of ${name}`}
+            className="absolute inset-0 h-full w-full border-0"
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+          {/* Transparent overlay so the whole card acts as a link and drags don't hijack the page */}
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 cursor-pointer"
+            style={{ background: "transparent" }}
+          />
+        </div>
+      </a>
       <MapButtons address={address} />
     </div>
   );
@@ -421,14 +440,12 @@ export function VenuesSection() {
           name="Guardian Angel Catholic Church"
           address="12307 Terra Bella St, Pacoima, CA 91331"
           parking={t("venues.churchParking")}
-          viewOnMap={t("venues.viewOnMap")}
         />
         <VenueCard
           label={t("venues.receptionLabel")}
           name="Platinum Banquet Hall"
           address="8704 Van Nuys Blvd, Panorama City, CA 91402"
           parking={t("venues.hallParking")}
-          viewOnMap={t("venues.viewOnMap")}
         />
       </div>
     </section>
@@ -444,6 +461,7 @@ type Hotel = {
   phone?: string;
   noteKey?: string;
   searchCity: string;
+  photo: string;
 };
 
 const HOTELS: Hotel[] = [
@@ -453,6 +471,7 @@ const HOTELS: Hotel[] = [
     address: "6360 Canoga Ave, Woodland Hills, CA 91367",
     phone: "(818) 226-1000",
     searchCity: "Woodland Hills",
+    photo: hotelHiltonUrl,
   },
   {
     name: "Sheraton Universal",
@@ -460,6 +479,7 @@ const HOTELS: Hotel[] = [
     address: "333 Universal Hollywood Dr, Universal City, CA 91608",
     phone: "(818) 980-1212",
     searchCity: "Universal City",
+    photo: hotelSheratonUrl,
   },
   {
     name: "Courtyard by Marriott Sherman Oaks",
@@ -467,12 +487,14 @@ const HOTELS: Hotel[] = [
     address: "15433 Ventura Blvd, Sherman Oaks, CA 91403",
     phone: "(818) 981-5400",
     searchCity: "Sherman Oaks",
+    photo: hotelCourtyardUrl,
   },
   {
     name: "Hampton Inn Panorama City",
     miles: "3",
     noteKey: "hotels.confirmAvailability",
     searchCity: "Panorama City",
+    photo: hotelHamptonUrl,
   },
 ];
 
@@ -492,15 +514,13 @@ export function HotelsSection() {
             className={`${CARD} flex flex-col overflow-hidden`}
             data-testid={`card-hotel-${h.name}`}
           >
-            <div
-              className="flex h-[160px] items-center justify-center"
-              style={{
-                background:
-                  "linear-gradient(140deg, hsl(28 45% 93%) 0%, hsl(346 30% 88%) 55%, hsl(28 31% 78%) 100%)",
-              }}
-              aria-hidden="true"
-            >
-              <Building2 className="h-12 w-12 text-[hsl(28_31%_42%)] opacity-80" />
+            <div className="relative h-[160px] overflow-hidden">
+              <img
+                src={h.photo}
+                alt={`${h.name} exterior`}
+                className="absolute inset-0 h-full w-full object-cover"
+                loading="lazy"
+              />
             </div>
             <div className="flex flex-1 flex-col px-5 py-5">
               <h3 className="font-display text-[1.2rem] font-semibold leading-snug text-[hsl(19_17%_26%)]">
@@ -539,33 +559,12 @@ export function HotelsSection() {
 
 export function DressCodeSection() {
   const { t } = useLanguage();
-  const swatches = [
-    { hex: "#E8C4C4", label: t("dress.blush") },
-    { hex: "#C97B8A", label: t("dress.dusty") },
-    { hex: "#F5EBE0", label: t("dress.cream") },
-    { hex: "#B0B99C", label: t("dress.sage") },
-    { hex: "#C89B7B", label: t("dress.rosegold") },
-  ];
   return (
     <section data-testid="section-dress-code">
       <SectionHeader eyebrow={t("dress.eyebrow")} heading={t("dress.heading")} ornament />
       <p className="font-display mx-auto mt-5 max-w-xl text-center text-[17px] leading-[1.7] text-[hsl(19_17%_30%)]">
         {t("dress.body")}
       </p>
-      <div className="mt-8 flex flex-wrap items-start justify-center gap-5 sm:gap-7">
-        {swatches.map((s) => (
-          <div key={s.hex} className="w-[64px] text-center" data-testid={`swatch-${s.hex}`}>
-            <span
-              className="mx-auto block h-12 w-12 rounded-full border border-[hsl(28_31%_55%/.6)]"
-              style={{ backgroundColor: s.hex }}
-              aria-hidden="true"
-            />
-            <span className="mt-2 block font-sans text-[10px] uppercase leading-tight tracking-[0.1em] text-[hsl(19_14%_45%)]">
-              {s.label}
-            </span>
-          </div>
-        ))}
-      </div>
     </section>
   );
 }

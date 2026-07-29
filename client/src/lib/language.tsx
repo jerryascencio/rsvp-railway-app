@@ -55,6 +55,9 @@ export const translations = {
       es: "No pudimos encontrarlo en la lista de invitados. Por favor revise la ortografía o comuníquese con la familia.",
     },
     which: { en: "Which one are you?", es: "¿Cuál de estos es usted?" },
+    confirmYou: { en: "Is this you?", es: "¿Es usted?" },
+    yesItsMe: { en: "Yes, that's me", es: "Sí, soy yo" },
+    noSearchAgain: { en: "No, search again", es: "No, buscar de nuevo" },
     partyOf: { en: "Party of", es: "Grupo de" },
     alreadyResponded: { en: " · already responded", es: " · ya respondió" },
     genericError: {
@@ -190,14 +193,9 @@ export const translations = {
     eyebrow: { en: "ATTIRE", es: "VESTIMENTA" },
     heading: { en: "Dress Code", es: "Código de Vestimenta" },
     body: {
-      en: "Formal / Semi-formal. Guests are warmly invited to wear these soft, celebratory tones if they wish.",
-      es: "Formal / Semiformal. Invitamos con cariño a nuestros huéspedes a usar estos tonos suaves y festivos si así lo desean.",
+      en: "Formal / Semi-formal attire. We kindly ask our guests to celebrate with us in their finest.",
+      es: "Vestimenta formal / semiformal. Les pedimos amablemente que nos acompañen en su mejor atuendo.",
     },
-    blush: { en: "Blush Pink", es: "Rosa Suave" },
-    dusty: { en: "Dusty Rose", es: "Rosa Empolvado" },
-    cream: { en: "Cream", es: "Crema" },
-    sage: { en: "Sage", es: "Salvia" },
-    rosegold: { en: "Rose Gold", es: "Oro Rosa" },
   },
   footer: {
     love: { en: "With love, the Espinoza De Anda Family", es: "Con cariño, la Familia Espinoza De Anda" },
