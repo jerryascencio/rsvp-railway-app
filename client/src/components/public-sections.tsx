@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Divider, SmallFlourish } from "@/components/ornaments";
 import { useLanguage } from "@/lib/language";
+import leahPhotoUrl from "@/assets/leah.jpg";
 
 /* -------------------------------------------------------- shared styling */
 
@@ -201,15 +202,18 @@ export function AboutSection() {
     <section className="mt-2" data-testid="section-about">
       <div className="flex flex-col items-center gap-8 sm:flex-row sm:gap-10">
         <div
-          className="flex h-[220px] w-[220px] shrink-0 items-center justify-center rounded-full border border-[hsl(28_31%_55%/.55)] sm:h-[280px] sm:w-[280px]"
+          className="relative h-[280px] w-[220px] shrink-0 overflow-hidden rounded-full border-2 border-[hsl(28_31%_55%/.55)] sm:h-[360px] sm:w-[280px]"
           style={{
-            background:
-              "radial-gradient(circle at 50% 40%, #FFFCF8 0%, #FBEEE7 55%, #F2D9D6 100%)",
             boxShadow: "0 22px 50px -34px hsl(19 20% 35% / .4)",
           }}
-          aria-hidden="true"
         >
-          <TiaraGlyph className="w-[100px] sm:w-[120px]" />
+          <img
+            src={leahPhotoUrl}
+            alt="Leah Adalynn Espinoza De Anda"
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ objectPosition: "50% 30%" }}
+            data-testid="img-leah"
+          />
         </div>
         <div className="text-center sm:text-left">
           <p className="label-caps" style={{ letterSpacing: "0.2em" }}>
