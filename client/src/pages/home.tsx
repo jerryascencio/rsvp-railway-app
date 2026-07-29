@@ -693,6 +693,8 @@ export default function Home() {
       <SectionOrnament />
       <ScheduleSection />
       <SectionOrnament />
+      <DressCodeSection />
+      <SectionOrnament />
       <VenuesSection />
       <SectionOrnament />
       <PadrinosSection />
@@ -700,8 +702,6 @@ export default function Home() {
       <CourtOfHonorSection />
       <SectionOrnament />
       <HotelsSection />
-      <SectionOrnament />
-      <DressCodeSection />
     </WideShell>
   );
 }
