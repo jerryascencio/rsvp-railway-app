@@ -114,8 +114,7 @@
       "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
     }
   },
-    "engines": {
+  "engines": {
     "node": "20.x"
-  }
   }
 }
