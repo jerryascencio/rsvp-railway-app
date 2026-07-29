@@ -693,7 +693,7 @@ export function PadrinosSection() {
         />
         <PadrinoRow
           label={t("padrinos.regaloLabel")}
-          names="Stefanie & Gerardo Ascencio"
+          names="Stefanie J Ascencio & Gerardo Ascencio Jr"
         />
       </div>
     </section>
