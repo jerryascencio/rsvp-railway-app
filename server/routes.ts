@@ -168,6 +168,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     const guestEmail = req.body?.guestEmail ? String(req.body.guestEmail).trim() : null;
     const attending: "yes" | "no" = attendees > 0 ? "yes" : "no";
+    const language: "en" | "es" = req.body?.language === "es" ? "es" : "en";
 
     const response = storage.upsertResponse({
       guestId: guest.id,
@@ -186,6 +187,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         guest,
         response,
         totals,
+        language,
       });
     } catch (err: any) {
       console.warn("[rsvp] email step failed but RSVP saved:", err?.message || err);

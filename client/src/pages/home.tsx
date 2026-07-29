@@ -288,7 +288,7 @@ const primaryButton =
 /* ----------------------------------------------------------------- page */
 
 export default function Home() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -362,6 +362,7 @@ export default function Home() {
         declinedCount: declined,
         guestEmail: email.trim() || null,
         note: note.trim() || null,
+        language,
       });
       setSubmitted({
         firstName: guest.firstName,

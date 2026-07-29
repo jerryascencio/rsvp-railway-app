@@ -5,38 +5,96 @@ import { EVENT } from "@shared/schema";
 // Public site URL used in the "Update your RSVP" link on the guest confirmation.
 const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.leahaespinoza.com";
 
-const eventDetailsText = [
-  "",
-  "— Event Details —",
-  `${EVENT.honoree}'s Quinceanera`,
-  EVENT.dateLong,
-  "",
-  `Mass: ${EVENT.massTime}`,
-  `${EVENT.massVenue}`,
-  `${EVENT.massAddress}`,
-  "",
-  `Reception: ${EVENT.receptionTime}`,
-  `${EVENT.receptionVenue}`,
-  `${EVENT.receptionAddress}`,
-].join("\n");
+type Lang = "en" | "es";
 
-const eventDetailsHtml = `
+// ---------- Localized strings for the guest confirmation email ----------
+const L = {
+  en: {
+    eventDetailsTitle: "Event Details",
+    quinceanera: `${EVENT.honoree}'s Quinceañera`,
+    massLabel: "Mass",
+    receptionLabel: "Reception",
+    thankYouEyebrow: "Thank You",
+    thankYouHeading: `Thank you for RSVPing to Leah&rsquo;s Quincea&ntilde;era!`,
+    hiGreeting: (name: string) => `Hi ${name}, we've recorded your response.`,
+    yourResponse: "Your Response",
+    attending: "Attending",
+    notAttending: "Not attending",
+    person: "person",
+    people: "people",
+    closingComing: "We can't wait to celebrate with you!",
+    closingNotComing: "We'll miss you \u2014 thank you for letting us know.",
+    mistakePrefix: "Made a mistake?",
+    updateLink: "Update your RSVP",
+    subject: "Your RSVP for Leah's Quincea\u00f1era",
+    thankYouText: `Thank you for RSVPing to Leah's Quinceanera!`,
+    yourResponseText: "Your response:",
+  },
+  es: {
+    eventDetailsTitle: "Detalles del Evento",
+    quinceanera: `Los XV años de ${EVENT.honoree}`,
+    massLabel: "Misa",
+    receptionLabel: "Recepción",
+    thankYouEyebrow: "Gracias",
+    thankYouHeading: `¡Gracias por confirmar su asistencia a los XV años de Leah!`,
+    hiGreeting: (name: string) => `Hola ${name}, hemos registrado su respuesta.`,
+    yourResponse: "Su Respuesta",
+    attending: "Asistir\u00e1n",
+    notAttending: "No asistir\u00e1n",
+    person: "persona",
+    people: "personas",
+    closingComing: "\u00a1No podemos esperar para celebrar con ustedes!",
+    closingNotComing: "Los extra\u00f1aremos \u2014 gracias por avisarnos.",
+    mistakePrefix: "\u00bfSe equivoc\u00f3?",
+    updateLink: "Actualice su RSVP",
+    subject: "Su confirmaci\u00f3n para los XV a\u00f1os de Leah",
+    thankYouText: `\u00a1Gracias por confirmar su asistencia a los XV a\u00f1os de Leah!`,
+    yourResponseText: "Su respuesta:",
+  },
+} as const;
+
+function eventDetailsTextFor(lang: Lang): string {
+  const s = L[lang];
+  return [
+    "",
+    `— ${s.eventDetailsTitle} —`,
+    s.quinceanera,
+    EVENT.dateLong,
+    "",
+    `${s.massLabel}: ${EVENT.massTime}`,
+    `${EVENT.massVenue}`,
+    `${EVENT.massAddress}`,
+    "",
+    `${s.receptionLabel}: ${EVENT.receptionTime}`,
+    `${EVENT.receptionVenue}`,
+    `${EVENT.receptionAddress}`,
+  ].join("\n");
+}
+
+function eventDetailsHtmlFor(lang: Lang): string {
+  const s = L[lang];
+  return `
   <div style="margin-top:28px;padding-top:20px;border-top:1px solid #E4CDBE;font-family:Georgia,serif;color:#4A3B34;">
-    <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;margin-bottom:10px;">Event Details</div>
-    <div style="font-size:17px;color:#B86478;margin-bottom:2px;">${EVENT.honoree}&rsquo;s Quincea&ntilde;era</div>
+    <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;margin-bottom:10px;">${s.eventDetailsTitle}</div>
+    <div style="font-size:17px;color:#B86478;margin-bottom:2px;">${s.quinceanera}</div>
     <div style="font-size:14px;margin-bottom:16px;">${EVENT.dateLong}</div>
-    <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;">Mass &middot; ${EVENT.massTime}</div>
+    <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;">${s.massLabel} &middot; ${EVENT.massTime}</div>
     <div style="font-size:14px;">${EVENT.massVenue}<br/>${EVENT.massAddress}</div>
     <div style="height:14px"></div>
-    <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;">Reception &middot; ${EVENT.receptionTime}</div>
+    <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;">${s.receptionLabel} &middot; ${EVENT.receptionTime}</div>
     <div style="font-size:14px;">${EVENT.receptionVenue}<br/>${EVENT.receptionAddress}</div>
   </div>`;
+}
 
-function wrap(inner: string) {
+// English versions used by the internal report email (always English for the host).
+const eventDetailsText = eventDetailsTextFor("en");
+const eventDetailsHtml = eventDetailsHtmlFor("en");
+
+function wrap(inner: string, detailsHtml: string = eventDetailsHtml) {
   return `<div style="background:#FBF2EA;padding:28px;">
     <div style="max-width:560px;margin:0 auto;background:#FFFDFB;border:1px solid #E9D6C7;border-radius:10px;padding:28px;font-family:Georgia,serif;color:#4A3B34;line-height:1.6;">
       ${inner}
-      ${eventDetailsHtml}
+      ${detailsHtml}
     </div>
   </div>`;
 }
@@ -48,8 +106,9 @@ function transport(s: Settings) {
   });
 }
 
-function plural(n: number) {
-  return n === 1 ? "person" : "people";
+function plural(n: number, lang: Lang = "en") {
+  const s = L[lang];
+  return n === 1 ? s.person : s.people;
 }
 
 export async function sendRsvpEmails(opts: {
@@ -57,8 +116,11 @@ export async function sendRsvpEmails(opts: {
   guest: Guest;
   response: RsvpResponse;
   totals: Totals;
+  language?: Lang;
 }): Promise<{ reportSent: boolean; guestSent: boolean; error?: string }> {
   const { settings, guest, response, totals } = opts;
+  const lang: Lang = opts.language === "es" ? "es" : "en";
+  const s = L[lang];
   const result = { reportSent: false, guestSent: false, error: undefined as string | undefined };
 
   if (!settings || !settings.smtpUser || !settings.smtpPass) {
@@ -113,47 +175,48 @@ export async function sendRsvpEmails(opts: {
     result.error = String(err?.message || err);
   }
 
-  // --- Email 2: guest confirmation ---
+  // --- Email 2: guest confirmation (localized) ---
   const to = response.guestEmail;
   if (to) {
     const coming = response.attendees > 0;
-    const closing = coming
-      ? "We can't wait to celebrate with you!"
-      : "We'll miss you — thank you for letting us know.";
+    const closing = coming ? s.closingComing : s.closingNotComing;
     const guestText = [
-      `Thank you for RSVPing to Leah's Quinceanera!`,
+      s.thankYouText,
       "",
-      "Your response:",
-      `• Attending: ${response.attendees}`,
-      `• Not attending: ${response.declinedCount}`,
+      s.yourResponseText,
+      `• ${s.attending}: ${response.attendees}`,
+      `• ${s.notAttending}: ${response.declinedCount}`,
       "",
       closing,
       "",
-      `Made a mistake? Update your RSVP: ${SITE_URL}`,
-      eventDetailsText,
+      `${s.mistakePrefix} ${s.updateLink}: ${SITE_URL}`,
+      eventDetailsTextFor(lang),
     ].join("\n");
 
-    const guestHtml = wrap(`
-      <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;">Thank You</div>
-      <h1 style="font-size:22px;color:#B86478;margin:8px 0 14px;">Thank you for RSVPing to Leah&rsquo;s Quincea&ntilde;era!</h1>
-      <p style="margin:0 0 14px;">Hi ${guest.firstName}, we've recorded your response.</p>
+    const guestHtml = wrap(
+      `
+      <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;">${s.thankYouEyebrow}</div>
+      <h1 style="font-size:22px;color:#B86478;margin:8px 0 14px;">${s.thankYouHeading}</h1>
+      <p style="margin:0 0 14px;">${s.hiGreeting(guest.firstName)}</p>
       <div style="background:#FBF2EA;border:1px solid #EEDDD0;border-radius:8px;padding:14px 18px;">
-        <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;margin-bottom:8px;">Your Response</div>
-        <div>Attending: <strong>${response.attendees}</strong> ${plural(response.attendees)}</div>
-        <div>Not attending: <strong>${response.declinedCount}</strong></div>
+        <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;margin-bottom:8px;">${s.yourResponse}</div>
+        <div>${s.attending}: <strong>${response.attendees}</strong> ${plural(response.attendees, lang)}</div>
+        <div>${s.notAttending}: <strong>${response.declinedCount}</strong></div>
       </div>
       <p style="margin:16px 0 0;font-size:16px;color:#B86478;">${closing}</p>
       <p style="margin:22px 0 0;font-size:14px;color:#6B584E;text-align:center;">
-        Made a mistake?
-        <a href="${SITE_URL}" style="color:#B86478;font-weight:600;text-decoration:underline;">Update your RSVP</a>
+        ${s.mistakePrefix}
+        <a href="${SITE_URL}" style="color:#B86478;font-weight:600;text-decoration:underline;">${s.updateLink}</a>
       </p>
-    `);
+    `,
+      eventDetailsHtmlFor(lang),
+    );
 
     try {
       await tx.sendMail({
         from: `"leah.a.espin" <${settings.smtpUser}>`,
         to,
-        subject: "Your RSVP for Leah's Quinceañera",
+        subject: s.subject,
         text: guestText,
         html: guestHtml,
       });
