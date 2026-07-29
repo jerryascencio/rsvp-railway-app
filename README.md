@@ -171,3 +171,5 @@ script/build.ts    Vite client build + esbuild server bundle
 - **No email retries.** If Gmail rejects a message the RSVP is still saved and the failure is logged; the guest sees a normal confirmation screen.
 - **No spam protection on the public search.** Anyone with the link can look up a guest name and submit an RSVP for them. The dashboard can correct any response, and every submission overwrites cleanly by guest.
 - **Ephemeral disk by default** — see the Persistence section above.
+
+<!-- deploy nudge 1785346125 -->
