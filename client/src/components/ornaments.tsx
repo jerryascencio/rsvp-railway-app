@@ -1,4 +1,5 @@
 import { EVENT } from "@shared/schema";
+import { useLanguage } from "@/lib/language";
 
 export function Tiara({ className = "" }: { className?: string }) {
   return (
@@ -66,7 +67,7 @@ export function Butterfly({ className = "" }: { className?: string }) {
 }
 
 /** Watercolor floral corners generated to match the printed invitation. */
-export function FloralFrame() {
+export function FloralFrame({ topOnly = false }: { topOnly?: boolean }) {
   const base =
     "pointer-events-none select-none absolute z-0 w-[46%] max-w-[420px] opacity-95";
   return (
@@ -75,24 +76,29 @@ export function FloralFrame() {
       <img
         src="./floral-tr.png"
         alt=""
-        className={`${base} top-0 right-0 hidden sm:block`}
+        className={`${base} top-0 right-0`}
       />
-      <img
-        src="./floral-bl.png"
-        alt=""
-        className={`${base} bottom-0 left-0 hidden sm:block`}
-      />
-      <img src="./floral-br.png" alt="" className={`${base} bottom-0 right-0`} />
+      {!topOnly && (
+        <>
+          <img
+            src="./floral-bl.png"
+            alt=""
+            className={`${base} bottom-0 left-0 hidden sm:block`}
+          />
+          <img src="./floral-br.png" alt="" className={`${base} bottom-0 right-0`} />
+        </>
+      )}
     </div>
   );
 }
 
 export function DateBlock() {
+  const { t } = useLanguage();
   return (
     <div className="flex items-stretch justify-center gap-4 sm:gap-6">
       <div className="flex flex-col justify-center text-right">
         <span className="font-display text-sm sm:text-base tracking-[0.2em] uppercase text-[hsl(19_17%_28%)]">
-          {EVENT.dayName}
+          {t("hero.dayName")}
         </span>
       </div>
       <div className="w-px bg-[hsl(28_31%_55%/.45)]" />
@@ -114,11 +120,13 @@ export function VenueBlock({
   time,
   venue,
   address,
+  testId,
 }: {
   label: string;
   time: string;
   venue: string;
   address: string;
+  testId?: string;
 }) {
   const maps = `https://maps.google.com/?q=${encodeURIComponent(`${venue}, ${address}`)}`;
   return (
@@ -138,7 +146,7 @@ export function VenueBlock({
         target="_blank"
         rel="noreferrer"
         className="font-display text-base text-[hsl(19_14%_40%)] underline decoration-[hsl(28_31%_55%/.4)] underline-offset-4 hover:text-[hsl(346_37%_46%)]"
-        data-testid={`link-map-${label.toLowerCase()}`}
+        data-testid={`link-map-${testId ?? label.toLowerCase()}`}
       >
         {address}
       </a>
@@ -147,19 +155,22 @@ export function VenueBlock({
 }
 
 export function EventDetails({ compact = false }: { compact?: boolean }) {
+  const { t } = useLanguage();
   return (
     <div className={compact ? "space-y-4" : "space-y-6"}>
       <VenueBlock
-        label="Mass"
+        label={t("details.mass")}
+        testId="mass"
         time={EVENT.massTime}
-        venue={EVENT.massVenue}
+        venue={t("details.massVenue")}
         address={EVENT.massAddress}
       />
       <SmallFlourish className="mx-auto w-32" />
       <VenueBlock
-        label="Reception"
+        label={t("details.reception")}
+        testId="reception"
         time={EVENT.receptionTime}
-        venue={EVENT.receptionVenue}
+        venue={t("details.receptionVenue")}
         address={EVENT.receptionAddress}
       />
     </div>

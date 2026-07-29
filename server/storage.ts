@@ -1,6 +1,7 @@
 import { guests, responses, admins, settings } from "@shared/schema";
 import type {
   Guest,
+  GuestRow,
   InsertGuest,
   RsvpResponse,
   Admin,
@@ -8,7 +9,11 @@ import type {
   GuestWithResponse,
   Totals,
 } from "@shared/schema";
-import { normalizePhone } from "@shared/schema";
+import {
+  normalizePhone,
+  parseAdditionalNames,
+  serializeAdditionalNames,
+} from "@shared/schema";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
@@ -29,7 +34,8 @@ CREATE TABLE IF NOT EXISTS guests (
   full_name TEXT NOT NULL DEFAULT '',
   phone TEXT NOT NULL DEFAULT '',
   email TEXT,
-  invites INTEGER NOT NULL DEFAULT 1
+  invites INTEGER NOT NULL DEFAULT 1,
+  additional_names TEXT
 );
 CREATE TABLE IF NOT EXISTS responses (
   id TEXT PRIMARY KEY,
@@ -56,6 +62,31 @@ CREATE TABLE IF NOT EXISTS settings (
   setup_complete INTEGER NOT NULL DEFAULT 0
 );
 `);
+
+// --- lightweight additive migrations for databases created by older versions ---
+// Railway (and any existing deployment) already has a `guests` table, so the
+// CREATE TABLE IF NOT EXISTS above is a no-op there. Add new columns here.
+for (const stmt of [`ALTER TABLE guests ADD COLUMN additional_names TEXT`]) {
+  try {
+    sqlite.exec(stmt);
+  } catch (err: any) {
+    const msg = String(err?.message || "");
+    // "duplicate column name: ..." means the migration already ran. Anything
+    // else we log but never crash the boot on.
+    if (!/duplicate column name/i.test(msg)) {
+      console.warn("[db] migration skipped:", msg);
+    }
+  }
+}
+
+/** Convert a raw row into the app-facing Guest (parsed additionalNames). */
+function toGuest(row: GuestRow): Guest;
+function toGuest(row: GuestRow | undefined): Guest | undefined;
+function toGuest(row: GuestRow | undefined): Guest | undefined {
+  if (!row) return undefined;
+  const { additionalNames, ...rest } = row;
+  return { ...rest, additionalNames: parseAdditionalNames(additionalNames) };
+}
 
 export class Storage {
   // ---------- settings ----------
@@ -128,29 +159,32 @@ export class Storage {
 
   // ---------- guests ----------
   allGuests(): Guest[] {
-    return db.select().from(guests).all();
+    return db.select().from(guests).all().map((r) => toGuest(r));
   }
 
   getGuest(id: string): Guest | undefined {
-    return db.select().from(guests).where(eq(guests.id, id)).get();
+    return toGuest(db.select().from(guests).where(eq(guests.id, id)).get());
   }
 
   createGuest(g: Omit<InsertGuest, "id" | "fullName"> & { id?: string }): Guest {
     const first = (g.firstName || "").trim();
     const last = (g.lastName || "").trim();
-    return db
-      .insert(guests)
-      .values({
-        id: g.id || randomUUID(),
-        firstName: first,
-        lastName: last,
-        fullName: `${first} ${last}`.trim(),
-        phone: (g.phone || "").trim(),
-        email: g.email ? g.email.trim() : null,
-        invites: Math.max(1, Number(g.invites) || 1),
-      })
-      .returning()
-      .get();
+    return toGuest(
+      db
+        .insert(guests)
+        .values({
+          id: g.id || randomUUID(),
+          firstName: first,
+          lastName: last,
+          fullName: `${first} ${last}`.trim(),
+          phone: (g.phone || "").trim(),
+          email: g.email ? g.email.trim() : null,
+          invites: Math.max(1, Number(g.invites) || 1),
+          additionalNames: serializeAdditionalNames(g.additionalNames),
+        })
+        .returning()
+        .get(),
+    );
   }
 
   updateGuest(id: string, patch: Partial<Guest>): Guest | undefined {
@@ -158,7 +192,11 @@ export class Storage {
     if (!existing) return undefined;
     const firstName = patch.firstName !== undefined ? patch.firstName.trim() : existing.firstName;
     const lastName = patch.lastName !== undefined ? (patch.lastName || "").trim() : existing.lastName;
-    return db
+    const additionalNames =
+      patch.additionalNames !== undefined
+        ? serializeAdditionalNames(patch.additionalNames)
+        : serializeAdditionalNames(existing.additionalNames);
+    return toGuest(db
       .update(guests)
       .set({
         firstName,
@@ -170,10 +208,11 @@ export class Storage {
           patch.invites !== undefined
             ? Math.max(1, Number(patch.invites) || 1)
             : existing.invites,
+        additionalNames,
       })
       .where(eq(guests.id, id))
       .returning()
-      .get();
+      .get());
   }
 
   deleteGuest(id: string) {
@@ -194,6 +233,13 @@ export class Storage {
       if (g.lastName && g.lastName.toLowerCase().includes(needle)) return true;
       const full = `${g.firstName} ${g.lastName}`.trim().toLowerCase();
       if (full.includes(needle)) return true;
+      // Additional household members: match first, last, or full name.
+      for (const n of g.additionalNames) {
+        if (n.firstName && n.firstName.toLowerCase().includes(needle)) return true;
+        if (n.lastName && n.lastName.toLowerCase().includes(needle)) return true;
+        const nFull = `${n.firstName} ${n.lastName}`.trim().toLowerCase();
+        if (nFull && nFull.includes(needle)) return true;
+      }
       return false;
     });
   }

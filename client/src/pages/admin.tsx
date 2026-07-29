@@ -19,7 +19,7 @@ import {
   ExternalLink,
   RefreshCw,
 } from "lucide-react";
-import type { GuestWithResponse, Totals } from "@shared/schema";
+import type { AdditionalName, GuestWithResponse, Totals } from "@shared/schema";
 import { api, apiUrl, setAuthToken, getAuthToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -283,6 +283,7 @@ type GuestDraft = {
   phone: string;
   email: string;
   invites: number;
+  additionalNames: AdditionalName[];
   attendees: string;
   declinedCount: string;
   note: string;
@@ -295,11 +296,33 @@ const emptyDraft: GuestDraft = {
   phone: "",
   email: "",
   invites: 1,
+  additionalNames: [],
   attendees: "",
   declinedCount: "",
   note: "",
   hasResponse: false,
 };
+
+const MAX_ADDITIONAL = 9;
+
+/**
+ * Resize the additional-names rows to (partySize - 1), keeping whatever the
+ * user already typed. Growing appends blanks; shrinking drops trailing rows.
+ */
+function resizeAdditional(list: AdditionalName[], partySize: number): AdditionalName[] {
+  const want = Math.max(0, Math.min(MAX_ADDITIONAL, (Number(partySize) || 1) - 1));
+  const next = list.slice(0, want);
+  while (next.length < want) next.push({ firstName: "", lastName: "" });
+  return next;
+}
+
+/** "Stefanie Ascencio, Marco Ascencio" */
+function alsoInParty(list: AdditionalName[] | null | undefined): string {
+  return (list || [])
+    .map((n) => `${n.firstName} ${n.lastName}`.trim())
+    .filter(Boolean)
+    .join(", ");
+}
 
 function StatCard({
   icon: Icon,
@@ -398,6 +421,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       const hay = [
         g.firstName,
         g.lastName,
+        alsoInParty(g.additionalNames),
         g.phone,
         g.email || "",
         r ? (r.attendees > 0 ? "attending yes" : "not attending no declined") : "pending",
@@ -427,6 +451,9 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
         return;
       }
     }
+    const additionalNames = resizeAdditional(draft.additionalNames, invites)
+      .map((n) => ({ firstName: n.firstName.trim(), lastName: n.lastName.trim() }))
+      .filter((n) => n.firstName || n.lastName);
     setSaving(true);
     try {
       if (draft.id) {
@@ -436,6 +463,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
           phone: draft.phone,
           email: draft.email || null,
           invites,
+          additionalNames,
           attendees: hasCounts ? Number(draft.attendees) : undefined,
           declinedCount:
             draft.declinedCount === "" ? undefined : Number(draft.declinedCount),
@@ -449,6 +477,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
           phone: draft.phone,
           email: draft.email || null,
           invites,
+          additionalNames,
         });
       }
       setDraft(null);
@@ -701,6 +730,16 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                 </Button>
               </div>
 
+              <div
+                className="border-b border-neutral-200 px-4 py-2 text-xs text-neutral-500"
+                data-testid="text-csv-columns-note"
+              >
+                CSV columns: <code>firstName, lastName, phone, email, invites</code>. Optional
+                columns: <code>additional1_first</code>, <code>additional1_last</code>,{" "}
+                <code>additional2_first</code>, <code>additional2_last</code>, … up to{" "}
+                <code>additional9</code>.
+              </div>
+
               {importResult && (
                 <div
                   className="border-b border-neutral-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800"
@@ -750,7 +789,16 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                       return (
                         <tr key={g.id} className="hover:bg-neutral-50" data-testid={`row-guest-${g.id}`}>
                           <td className="px-4 py-3 font-medium text-neutral-900">
-                            {g.fullName || `${g.firstName} ${g.lastName}`}
+                            <div>{g.fullName || `${g.firstName} ${g.lastName}`}</div>
+                            {g.additionalNames.length > 0 && (
+                              <div
+                                className="mt-0.5 max-w-[240px] truncate text-xs font-normal text-neutral-400"
+                                title={`Also in party: ${alsoInParty(g.additionalNames)}`}
+                                data-testid={`text-also-in-party-${g.id}`}
+                              >
+                                Also in party: {alsoInParty(g.additionalNames)}
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-neutral-600">
                             <div>{g.phone || "—"}</div>
@@ -808,6 +856,10 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                                   phone: g.phone,
                                   email: g.email || "",
                                   invites: g.invites,
+                                  additionalNames: resizeAdditional(
+                                    g.additionalNames.map((n) => ({ ...n })),
+                                    g.invites,
+                                  ),
                                   attendees: r ? String(r.attendees) : "",
                                   declinedCount: r ? String(r.declinedCount) : "",
                                   note: r?.note || "",
@@ -962,11 +1014,62 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                 <Input
                   type="number"
                   min={1}
+                  max={10}
                   value={draft.invites}
-                  onChange={(e) => setDraft({ ...draft, invites: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const invites = Number(e.target.value);
+                    setDraft({
+                      ...draft,
+                      invites,
+                      additionalNames: resizeAdditional(draft.additionalNames, invites),
+                    });
+                  }}
                   data-testid="input-guest-invites"
                 />
               </Field>
+
+              {Number(draft.invites) >= 2 && (
+                <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4" data-testid="section-additional-names">
+                  <h3 className="text-sm font-semibold text-neutral-900">
+                    Additional household members (optional)
+                  </h3>
+                  <p className="mt-1 text-xs text-neutral-500">
+                    Add other people invited in this household. Guests can find the invitation
+                    by any of these names.
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {resizeAdditional(draft.additionalNames, draft.invites).map((row, i) => (
+                      <div key={i} className="space-y-1.5">
+                        <Label className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+                          Additional guest {i + 1}
+                        </Label>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Input
+                            value={row.firstName}
+                            placeholder="First name"
+                            onChange={(e) => {
+                              const next = resizeAdditional(draft.additionalNames, draft.invites);
+                              next[i] = { ...next[i], firstName: e.target.value };
+                              setDraft({ ...draft, additionalNames: next });
+                            }}
+                            data-testid={`input-additional-${i + 1}-first`}
+                          />
+                          <Input
+                            value={row.lastName}
+                            placeholder="Last name"
+                            onChange={(e) => {
+                              const next = resizeAdditional(draft.additionalNames, draft.invites);
+                              next[i] = { ...next[i], lastName: e.target.value };
+                              setDraft({ ...draft, additionalNames: next });
+                            }}
+                            data-testid={`input-additional-${i + 1}-last`}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {draft.id && (
                 <>
                   <div className="h-px bg-neutral-200" />

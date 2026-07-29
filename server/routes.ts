@@ -5,7 +5,27 @@ import bcrypt from "bcryptjs";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { storage } from "./storage";
 import { sendRsvpEmails, sendTestEmail } from "./mailer";
-import { normalizePhone } from "@shared/schema";
+import { normalizePhone, additionalNamesSchema } from "@shared/schema";
+import type { AdditionalName } from "@shared/schema";
+
+/** Max number of extra household members supported (party size 10). */
+const MAX_ADDITIONAL = 9;
+
+/** Coerce an untrusted request body value into a clean AdditionalName[]. */
+function readAdditionalNames(v: unknown): AdditionalName[] | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return [];
+  const raw = Array.isArray(v) ? v : [];
+  const normalized = raw.map((n: any) => ({
+    firstName: String(n?.firstName ?? "").trim(),
+    lastName: String(n?.lastName ?? "").trim(),
+  }));
+  const parsed = additionalNamesSchema.safeParse(normalized);
+  if (!parsed.success) return [];
+  return parsed.data
+    .filter((n) => n.firstName || n.lastName)
+    .slice(0, MAX_ADDITIONAL);
+}
 
 const SESSION_DAYS = 14;
 const COOKIE = "qc_session";
@@ -121,6 +141,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         fullName: g.fullName || `${g.firstName} ${g.lastName}`.trim(),
         invites: g.invites,
         email: g.email,
+        additionalNames: g.additionalNames,
         existing: r
           ? { attendees: r.attendees, declinedCount: r.declinedCount, note: r.note, guestEmail: r.guestEmail }
           : null,
@@ -264,6 +285,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       phone: String(phone || ""),
       email: email ? String(email) : null,
       invites: Number(invites) || 1,
+      additionalNames: readAdditionalNames(req.body?.additionalNames) ?? [],
     });
     res.json({ guest });
   });
@@ -275,6 +297,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       phone: req.body?.phone,
       email: req.body?.email,
       invites: req.body?.invites,
+      additionalNames: readAdditionalNames(req.body?.additionalNames),
     });
     if (!guest) return res.status(404).json({ message: "Guest not found" });
 
@@ -312,7 +335,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     let header = rows[0].map((h) => h.trim().toLowerCase().replace(/[\s_-]/g, ""));
     const known = ["firstname", "lastname", "phone", "email", "invites"];
-    const hasHeader = header.some((h) => known.includes(h));
+    const hasHeader =
+      header.some((h) => known.includes(h)) ||
+      header.some((h) => /^additional\d(first|last)$/.test(h));
     const idx = (name: string) => {
       const i = header.indexOf(name);
       return i;
@@ -326,6 +351,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           invites: idx("invites"),
         }
       : { firstName: 0, lastName: 1, phone: 2, email: 3, invites: 4 };
+
+    // Optional additional-household-member columns: additional1_first / additional1_last
+    // ... up to additional9_*. Header comparison already strips spaces, underscores
+    // and hyphens and lowercases, so snake_case, camelCase and hyphenated all work.
+    const additionalCols: { first: number; last: number }[] = [];
+    for (let n = 1; n <= MAX_ADDITIONAL; n++) {
+      additionalCols.push({
+        first: hasHeader ? idx(`additional${n}first`) : -1,
+        last: hasHeader ? idx(`additional${n}last`) : -1,
+      });
+    }
 
     const body = hasHeader ? rows.slice(1) : rows;
     let added = 0,
@@ -345,6 +381,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         skipped++;
         continue;
       }
+      const additionalNames: AdditionalName[] = [];
+      for (const pair of additionalCols) {
+        const aFirst = get(pair.first);
+        const aLast = get(pair.last);
+        // Both halves must be present, otherwise skip this pair silently.
+        if (aFirst && aLast) additionalNames.push({ firstName: aFirst, lastName: aLast });
+      }
       const digits = normalizePhone(phone);
       let match = digits
         ? existing.find((g) => normalizePhone(g.phone) && normalizePhone(g.phone) === digits)
@@ -363,6 +406,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           phone: phone || match.phone,
           email: email || match.email,
           invites,
+          additionalNames: additionalNames.length ? additionalNames : match.additionalNames,
         });
         if (u) {
           Object.assign(match, u);
@@ -375,6 +419,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           phone,
           email: email || null,
           invites,
+          additionalNames,
         });
         existing.push(created);
         added++;
@@ -391,6 +436,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       "phone",
       "email",
       "invites",
+      "additionalNames",
       "attending",
       "attendees",
       "declinedCount",
@@ -409,6 +455,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           g.phone,
           g.email || "",
           g.invites,
+          g.additionalNames.map((n) => `${n.firstName} ${n.lastName}`.trim()).join("; "),
           r ? r.attending : "pending",
           r ? r.attendees : "",
           r ? r.declinedCount : "",

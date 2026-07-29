@@ -117,7 +117,22 @@ Hector,Ramirez,,hector@example.com,3
 - `email` may be blank.
 - `invites` is the party size (how many seats that household may fill). Blank or invalid becomes `1`.
 - Upload upserts: rows match an existing guest by normalized phone first, then by `firstName + lastName`. The dashboard reports "Added X, updated Y, skipped Z".
-- **Download CSV** exports `firstName,lastName,phone,email,invites,attending,attendees,declinedCount,pendingSeats,guestEmail,note,updatedAt`.
+- **Download CSV** exports `firstName,lastName,phone,email,invites,additionalNames,attending,attendees,declinedCount,pendingSeats,guestEmail,note,updatedAt` (`additionalNames` is a `; `-separated list).
+
+### Optional additional household members
+
+Any row may also name the other people invited in that household, so a guest can
+find the invitation by their own name. Add up to nine pairs of optional columns:
+
+```csv
+firstName,lastName,phone,email,invites,additional1_first,additional1_last,additional2_first,additional2_last
+Adrian,Ascencio,8185551234,adrian@example.com,3,Stefanie,Ascencio,Marco,Ascencio
+```
+
+- Supported through `additional9_first` / `additional9_last` (party size 10).
+- Header matching is case-insensitive and ignores spaces, underscores and hyphens, so `additional1_first`, `additional1First` and `additional1-first` are all accepted.
+- A pair is imported only when both the first and last name are non-blank; otherwise it is skipped silently.
+- On re-upload, a row without additional columns leaves the existing extra names untouched.
 
 ---
 

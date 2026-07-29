@@ -1,4 +1,6 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
 
 export const guests = sqliteTable("guests", {
   id: text("id").primaryKey(),
@@ -8,7 +10,52 @@ export const guests = sqliteTable("guests", {
   phone: text("phone").notNull().default(""),
   email: text("email"),
   invites: integer("invites").notNull().default(1),
+  /** JSON-encoded Array<{firstName,lastName}>. SQLite has no array type. */
+  additionalNames: text("additional_names"),
 });
+
+/** One extra household member. */
+export const additionalNameSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+});
+export const additionalNamesSchema = additionalNameSchema.array();
+export type AdditionalName = z.infer<typeof additionalNameSchema>;
+
+/** Insert schema for guests: additionalNames accepted as a real array. */
+export const insertGuestSchema = createInsertSchema(guests)
+  .omit({ id: true, fullName: true, additionalNames: true })
+  .extend({ additionalNames: additionalNamesSchema.optional() });
+export type InsertGuestInput = z.infer<typeof insertGuestSchema>;
+
+/** Parse the raw JSON text column into a typed array. Never throws. */
+export function parseAdditionalNames(raw: string | null | undefined): AdditionalName[] {
+  if (!raw || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    const result = additionalNamesSchema.safeParse(parsed);
+    if (!result.success) return [];
+    return result.data
+      .map((n) => ({ firstName: (n.firstName || "").trim(), lastName: (n.lastName || "").trim() }))
+      .filter((n) => n.firstName || n.lastName);
+  } catch {
+    return [];
+  }
+}
+
+/** Serialize a typed array back to the JSON text column (null when empty). */
+export function serializeAdditionalNames(
+  list: AdditionalName[] | null | undefined,
+): string | null {
+  if (!list || list.length === 0) return null;
+  const clean = list
+    .map((n) => ({
+      firstName: (n?.firstName || "").trim(),
+      lastName: (n?.lastName || "").trim(),
+    }))
+    .filter((n) => n.firstName || n.lastName);
+  return clean.length ? JSON.stringify(clean) : null;
+}
 
 export const responses = sqliteTable("responses", {
   id: text("id").primaryKey(),
@@ -37,8 +84,15 @@ export const settings = sqliteTable("settings", {
   setupComplete: integer("setup_complete").notNull().default(0),
 });
 
-export type Guest = typeof guests.$inferSelect;
-export type InsertGuest = typeof guests.$inferInsert;
+/** Raw database row — additionalNames is JSON text. */
+export type GuestRow = typeof guests.$inferSelect;
+/** App-facing guest — additionalNames is a parsed array. */
+export type Guest = Omit<GuestRow, "additionalNames"> & {
+  additionalNames: AdditionalName[];
+};
+export type InsertGuest = Omit<typeof guests.$inferInsert, "additionalNames"> & {
+  additionalNames?: AdditionalName[];
+};
 export type RsvpResponse = typeof responses.$inferSelect;
 export type InsertResponse = typeof responses.$inferInsert;
 export type Admin = typeof admins.$inferSelect;
