@@ -13,6 +13,8 @@ import hotelHiltonUrl from "@/assets/hotel-hilton.jpg";
 import hotelSheratonUrl from "@/assets/hotel-sheraton.jpg";
 import hotelCourtyardUrl from "@/assets/hotel-courtyard.jpg";
 import hotelHamptonUrl from "@/assets/hotel-hampton.jpg";
+import venueChurchUrl from "@/assets/venue-church.jpg";
+import venueHallUrl from "@/assets/venue-hall.jpg";
 
 /* -------------------------------------------------------- shared styling */
 
@@ -376,55 +378,81 @@ function VenueCard({
   name,
   address,
   parking,
+  photo,
 }: {
   label: string;
   name: string;
   address: string;
   parking: string;
+  photo: string;
 }) {
   const q = encodeURIComponent(address);
   // Google Maps free embed (no API key required for the standard /maps?output=embed endpoint).
   const mapSrc = `https://maps.google.com/maps?q=${q}&z=15&output=embed`;
   return (
-    <div className={`${CARD} px-6 py-7 sm:px-7`} data-testid={`card-venue-${name}`}>
-      <p className="label-caps" style={{ letterSpacing: "0.2em" }}>
-        {label}
-      </p>
-      <h3 className="font-display mt-2 text-[1.5rem] leading-snug text-[hsl(346_33%_46%)]">
-        {name}
-      </h3>
-      <p className="font-display mt-2 text-[16px] leading-[1.7] text-[hsl(19_17%_32%)]">
-        {address}
-      </p>
-      <p className="font-display mt-2 text-[15px] italic leading-[1.6] text-[hsl(19_14%_45%)]">
-        {parking}
-      </p>
+    <div
+      className={`${CARD} overflow-hidden`}
+      data-testid={`card-venue-${name}`}
+    >
+      {/* Venue hero photo — full-bleed at the top of the card */}
+      <div className="relative h-[200px] w-full overflow-hidden">
+        <img
+          src={photo}
+          alt={name}
+          className="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+        />
+        {/* Subtle gradient overlay so the label chip reads clearly on any photo */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.35) 100%)",
+          }}
+        />
+      </div>
 
-      <a
-        href={`https://www.google.com/maps/search/?api=1&query=${q}`}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-5 block overflow-hidden rounded-lg border border-[hsl(28_31%_55%/.4)] shadow-[0_10px_30px_-20px_hsl(19_20%_35%/.4)]"
-        aria-label={`Open ${name} in Google Maps`}
-        data-testid={`map-preview-${name}`}
-      >
-        <div className="relative h-[180px] w-full">
-          <iframe
-            src={mapSrc}
-            title={`Map of ${name}`}
-            className="absolute inset-0 h-full w-full border-0"
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-          />
-          {/* Transparent overlay so the whole card acts as a link and drags don't hijack the page */}
-          <span
-            aria-hidden="true"
-            className="absolute inset-0 cursor-pointer"
-            style={{ background: "transparent" }}
-          />
-        </div>
-      </a>
-      <MapButtons address={address} />
+      <div className="px-6 py-6 sm:px-7">
+        <p className="label-caps" style={{ letterSpacing: "0.2em" }}>
+          {label}
+        </p>
+        <h3 className="font-display mt-2 text-[1.5rem] leading-snug text-[hsl(346_33%_46%)]">
+          {name}
+        </h3>
+        <p className="font-display mt-2 text-[16px] leading-[1.7] text-[hsl(19_17%_32%)]">
+          {address}
+        </p>
+        <p className="font-display mt-2 text-[15px] italic leading-[1.6] text-[hsl(19_14%_45%)]">
+          {parking}
+        </p>
+
+        <a
+          href={`https://www.google.com/maps/search/?api=1&query=${q}`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-5 block overflow-hidden rounded-lg border border-[hsl(28_31%_55%/.4)] shadow-[0_10px_30px_-20px_hsl(19_20%_35%/.4)]"
+          aria-label={`Open ${name} in Google Maps`}
+          data-testid={`map-preview-${name}`}
+        >
+          <div className="relative h-[180px] w-full">
+            <iframe
+              src={mapSrc}
+              title={`Map of ${name}`}
+              className="absolute inset-0 h-full w-full border-0"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+            {/* Transparent overlay so the whole card acts as a link and drags don't hijack the page */}
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 cursor-pointer"
+              style={{ background: "transparent" }}
+            />
+          </div>
+        </a>
+        <MapButtons address={address} />
+      </div>
     </div>
   );
 }
@@ -440,12 +468,14 @@ export function VenuesSection() {
           name="Guardian Angel Catholic Church"
           address="12307 Terra Bella St, Pacoima, CA 91331"
           parking={t("venues.churchParking")}
+          photo={venueChurchUrl}
         />
         <VenueCard
           label={t("venues.receptionLabel")}
           name="Platinum Banquet Hall"
           address="8704 Van Nuys Blvd, Panorama City, CA 91402"
           parking={t("venues.hallParking")}
+          photo={venueHallUrl}
         />
       </div>
     </section>
