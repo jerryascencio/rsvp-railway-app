@@ -14,6 +14,8 @@ import {
 } from "@/components/ornaments";
 import {
   AboutSection,
+  CourtOfHonorSection,
+  PadrinosSection,
   Countdown,
   DressCodeSection,
   HotelsSection,
@@ -692,6 +694,10 @@ export default function Home() {
       <ScheduleSection />
       <SectionOrnament />
       <VenuesSection />
+      <SectionOrnament />
+      <PadrinosSection />
+      <SectionOrnament />
+      <CourtOfHonorSection />
       <SectionOrnament />
       <HotelsSection />
       <SectionOrnament />

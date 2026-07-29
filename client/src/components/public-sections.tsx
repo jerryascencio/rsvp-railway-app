@@ -585,6 +585,192 @@ export function HotelsSection() {
   );
 }
 
+/* --------------------------------------------------------------- padrinos */
+
+function PadrinoRow({
+  label,
+  names,
+  large = false,
+}: {
+  label: string;
+  names: string;
+  large?: boolean;
+}) {
+  return (
+    <div
+      className={`text-center ${large ? "py-5" : "py-3"}`}
+      data-testid={`padrino-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+    >
+      <p
+        className="label-caps"
+        style={{
+          letterSpacing: "0.2em",
+          fontSize: large ? "0.82rem" : "0.72rem",
+        }}
+      >
+        {label}
+      </p>
+      <p
+        className={`font-display mt-1.5 leading-snug text-[hsl(346_33%_46%)] ${
+          large ? "text-[1.35rem] sm:text-[1.55rem]" : "text-[1.05rem] sm:text-[1.15rem]"
+        }`}
+      >
+        {names}
+      </p>
+    </div>
+  );
+}
+
+function OrnamentDivider() {
+  return (
+    <div className="my-1 flex items-center justify-center gap-3 opacity-60">
+      <span className="h-px w-16 bg-[hsl(28_31%_55%/.55)]" />
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 14 14"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M7 1.5c1.6 0 3 1.2 3 2.8 0 1.6-1.4 3-3 3s-3-1.4-3-3c0-1.6 1.4-2.8 3-2.8Z"
+          stroke="hsl(28 31% 55%)"
+          strokeWidth="0.8"
+          fill="none"
+        />
+        <circle cx="7" cy="7" r="1" fill="hsl(28 31% 55%)" />
+      </svg>
+      <span className="h-px w-16 bg-[hsl(28_31%_55%/.55)]" />
+    </div>
+  );
+}
+
+export function PadrinosSection() {
+  const { t } = useLanguage();
+  return (
+    <section data-testid="section-padrinos">
+      <SectionHeader
+        eyebrow={t("padrinos.eyebrow")}
+        heading={t("padrinos.heading")}
+        ornament
+      />
+      <p className="font-display mx-auto mt-4 max-w-xl text-center text-[16px] italic leading-[1.7] text-[hsl(19_14%_45%)]">
+        {t("padrinos.sub")}
+      </p>
+
+      <div className={`${CARD} mx-auto mt-8 max-w-2xl px-6 py-8 sm:px-10`}>
+        {/* Padrinos de Honor — larger, centered */}
+        <PadrinoRow
+          label={t("padrinos.honorLabel")}
+          names="Angelica De Anda & Miguel Muñoz"
+          large
+        />
+        <OrnamentDivider />
+
+        <PadrinoRow
+          label={t("padrinos.ramoLabel")}
+          names={"Silvia Mendez & Juan Abel \u201cChaco\u201d Mendez"}
+        />
+        <PadrinoRow
+          label={t("padrinos.bibliaLabel")}
+          names={"Martina Delgadillo & Gerardo \u201cJerry\u201d Ascencio"}
+        />
+        <PadrinoRow
+          label={t("padrinos.medallaLabel")}
+          names="Rudy De Anda & Atoor De Anda"
+        />
+        <PadrinoRow
+          label={t("padrinos.anilloLabel")}
+          names="Reynaldo Ascencio & Rosa Ascencio"
+        />
+        <PadrinoRow
+          label={t("padrinos.coronacionLabel")}
+          names="Rosamaria Jimenez & Angela Arriola"
+        />
+        <PadrinoRow
+          label={t("padrinos.zapatosLabel")}
+          names="John Anthony Espinoza"
+        />
+        <PadrinoRow
+          label={t("padrinos.regaloLabel")}
+          names="Stefanie & Gerardo Ascencio"
+        />
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------- court of honor */
+
+function CourtCoupleRow({ names }: { names: string }) {
+  return (
+    <div
+      className="py-3 text-center"
+      data-testid={`court-${names.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+    >
+      <p className="font-display text-[1.1rem] leading-snug text-[hsl(19_17%_30%)] sm:text-[1.2rem]">
+        {names}
+      </p>
+    </div>
+  );
+}
+
+export function CourtOfHonorSection() {
+  const { t } = useLanguage();
+  const couples = [
+    "Laylanie Solis & Nathan Olea",
+    "Victoria Ascencio & Max Zavala",
+    "Izabella Paz & Evan Acosta",
+    "Monica Alvarado & Antonio Casillas",
+    "Sophia Rodriguez & Ricardo Ascencio",
+    "Valentina Ascencio & Everest N\u00e1jera",
+  ];
+  return (
+    <section data-testid="section-court">
+      <SectionHeader
+        eyebrow={t("court.eyebrow")}
+        heading={t("court.heading")}
+        ornament
+      />
+      <p className="font-display mx-auto mt-4 max-w-xl text-center text-[16px] italic leading-[1.7] text-[hsl(19_14%_45%)]">
+        {t("court.sub")}
+      </p>
+
+      <div className={`${CARD} mx-auto mt-8 max-w-2xl px-6 py-8 sm:px-10`}>
+        {/* Chamberlain of Honor — larger, centered */}
+        <div className="text-center py-4" data-testid="court-main-chambelan">
+          <p
+            className="label-caps"
+            style={{ letterSpacing: "0.2em", fontSize: "0.82rem" }}
+          >
+            {t("court.mainChambelanLabel")}
+          </p>
+          <p className="font-display mt-1.5 text-[1.5rem] leading-snug text-[hsl(346_33%_46%)] sm:text-[1.7rem]">
+            Juan Mendez
+          </p>
+        </div>
+
+        <OrnamentDivider />
+
+        <div className="text-center mt-2">
+          <p
+            className="label-caps"
+            style={{ letterSpacing: "0.2em", fontSize: "0.72rem" }}
+          >
+            {t("court.couplesLabel")}
+          </p>
+        </div>
+
+        <div className="mt-2">
+          {couples.map((c) => (
+            <CourtCoupleRow key={c} names={c} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* -------------------------------------------------------------- dress code */
 
 export function DressCodeSection() {

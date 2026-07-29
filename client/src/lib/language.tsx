@@ -189,6 +189,32 @@ export const translations = {
     },
     hamptonArea: { en: "Panorama City area, California", es: "Zona de Panorama City, California" },
   },
+  padrinos: {
+    eyebrow: { en: "WITH GRATITUDE", es: "CON GRATITUD" },
+    heading: { en: "Padrinos & Madrinas", es: "Padrinos y Madrinas" },
+    sub: {
+      en: "With heartfelt thanks to our godparents",
+      es: "Con gratitud a nuestros padrinos y madrinas",
+    },
+    honorLabel: { en: "Padrinos de Honor", es: "Padrinos de Honor" },
+    ramoLabel: { en: "Padrinos de Ramo", es: "Padrinos de Ramo" },
+    bibliaLabel: { en: "Padrinos de Biblia y Rosario", es: "Padrinos de Biblia y Rosario" },
+    medallaLabel: { en: "Padrinos de Medalla", es: "Padrinos de Medalla" },
+    anilloLabel: { en: "Padrinos de Anillo", es: "Padrinos de Anillo" },
+    coronacionLabel: { en: "Coronación", es: "Coronación" },
+    zapatosLabel: { en: "Change of Shoes", es: "Cambio de Zapatos" },
+    regaloLabel: { en: "Regalo Sorpresa", es: "Regalo Sorpresa" },
+  },
+  court: {
+    eyebrow: { en: "BY HER SIDE", es: "A SU LADO" },
+    heading: { en: "Quince Court of Honor", es: "Corte de Honor" },
+    sub: {
+      en: "The dear friends and family accompanying Leah",
+      es: "Los queridos amigos y familiares que acompañan a Leah",
+    },
+    mainChambelanLabel: { en: "Chamberlain of Honor", es: "Chambelán de Honor" },
+    couplesLabel: { en: "Damas & Chambelanes", es: "Damas y Chambelanes" },
+  },
   dress: {
     eyebrow: { en: "ATTIRE", es: "VESTIMENTA" },
     heading: { en: "Dress Code", es: "Código de Vestimenta" },
