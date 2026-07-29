@@ -133,7 +133,7 @@ export async function sendRsvpEmails(opts: {
   const tx = transport(settings);
   const name = guest.fullName || `${guest.firstName} ${guest.lastName}`.trim();
 
-  // --- Email 1: Stef's report ---
+  // --- Email 1: Stef's report (concise, no event details) ---
   const reportText = [
     `${name} just RSVPed — ${response.attendees} attending, ${response.declinedCount} not attending from their party of ${guest.invites}.`,
     "",
@@ -142,10 +142,12 @@ export async function sendRsvpEmails(opts: {
     `• Not attending: ${totals.totalDeclined} people`,
     `• Still pending: ${totals.totalPendingHouseholds} households (${totals.totalPending} seats)`,
     response.note ? `\nNote from guest: ${response.note}` : "",
-    eventDetailsText,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-  const reportHtml = wrap(`
+  // Inner report body — no event details footer.
+  const reportInner = `
     <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;">RSVP Update</div>
     <h1 style="font-size:20px;color:#B86478;margin:8px 0 16px;">${name} just RSVPed</h1>
     <p style="margin:0 0 16px;">
@@ -159,7 +161,9 @@ export async function sendRsvpEmails(opts: {
       <div>Still pending: <strong>${totals.totalPendingHouseholds}</strong> households (${totals.totalPending} seats)</div>
     </div>
     ${response.note ? `<p style="margin:16px 0 0;font-style:italic;color:#6B584E;">“${response.note}”</p>` : ""}
-  `);
+  `;
+  // Pass empty details HTML so the host email is a clean, focused update.
+  const reportHtml = wrap(reportInner, "");
 
   try {
     await tx.sendMail({

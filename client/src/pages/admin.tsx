@@ -664,6 +664,119 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                 <li>Pending = all seats belonging to households that haven&rsquo;t responded.</li>
               </ul>
             </div>
+
+            {/* ---------------- status lists ---------------- */}
+            {(() => {
+              const attendingList = guests.filter(
+                (g) => (g.response?.attendees ?? 0) > 0,
+              );
+              const declinedList = guests.filter(
+                (g) =>
+                  g.response != null &&
+                  (g.response.attendees ?? 0) === 0 &&
+                  (g.response.declinedCount ?? 0) > 0,
+              );
+              const pendingList = guests.filter((g) => g.response == null);
+
+              type G = (typeof guests)[number];
+              const GuestCard = ({ g, kind }: { g: G; kind: "yes" | "no" | "pending" }) => {
+                const name = g.fullName || `${g.firstName ?? ""} ${g.lastName ?? ""}`.trim();
+                const extras = alsoInParty(g.additionalNames);
+                const attendees = g.response?.attendees ?? 0;
+                const declined = g.response?.declinedCount ?? 0;
+                const badge =
+                  kind === "yes"
+                    ? `${attendees} of ${g.invites} coming`
+                    : kind === "no"
+                      ? `${declined} of ${g.invites} declined`
+                      : `${g.invites} invited`;
+                const badgeClass =
+                  kind === "yes"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : kind === "no"
+                      ? "bg-neutral-100 text-neutral-700 border-neutral-200"
+                      : "bg-amber-50 text-amber-700 border-amber-200";
+                return (
+                  <li
+                    key={g.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-neutral-200 bg-white px-3 py-2"
+                    data-testid={`status-row-${kind}-${g.id}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-neutral-900">{name}</div>
+                      {extras && (
+                        <div className="mt-0.5 truncate text-xs text-neutral-500">{extras}</div>
+                      )}
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${badgeClass}`}
+                    >
+                      {badge}
+                    </span>
+                  </li>
+                );
+              };
+
+              const Column = ({
+                title,
+                accent,
+                items,
+                kind,
+                empty,
+              }: {
+                title: string;
+                accent: string;
+                items: G[];
+                kind: "yes" | "no" | "pending";
+                empty: string;
+              }) => (
+                <div className="rounded-xl border border-neutral-200 bg-white">
+                  <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+                    <h3 className="text-sm font-semibold text-neutral-900">{title}</h3>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${accent}`}
+                    >
+                      {items.length}
+                    </span>
+                  </div>
+                  {items.length === 0 ? (
+                    <p className="px-4 py-6 text-center text-sm text-neutral-500">{empty}</p>
+                  ) : (
+                    <ul className="max-h-[420px] space-y-2 overflow-auto p-3">
+                      {items.map((g) => (
+                        <GuestCard key={g.id} g={g} kind={kind} />
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+
+              return (
+                <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                  <Column
+                    title="Attending"
+                    accent="bg-emerald-50 text-emerald-700"
+                    items={attendingList}
+                    kind="yes"
+                    empty="No confirmed yeses yet."
+                  />
+                  <Column
+                    title="Not attending"
+                    accent="bg-neutral-100 text-neutral-700"
+                    items={declinedList}
+                    kind="no"
+                    empty="No declines yet."
+                  />
+                  <Column
+                    title="Pending"
+                    accent="bg-amber-50 text-amber-700"
+                    items={pendingList}
+                    kind="pending"
+                    empty="Everyone has responded."
+                  />
+                </div>
+              );
+            })()}
           </TabsContent>
 
           {/* ---------------- guests ---------------- */}
