@@ -2,6 +2,9 @@ import nodemailer from "nodemailer";
 import type { Guest, RsvpResponse, Settings, Totals } from "@shared/schema";
 import { EVENT } from "@shared/schema";
 
+// Public site URL used in the "Update your RSVP" link on the guest confirmation.
+const SITE_URL = process.env.PUBLIC_SITE_URL || "https://www.leahaespinoza.com";
+
 const eventDetailsText = [
   "",
   "— Event Details —",
@@ -15,8 +18,6 @@ const eventDetailsText = [
   `Reception: ${EVENT.receptionTime}`,
   `${EVENT.receptionVenue}`,
   `${EVENT.receptionAddress}`,
-  "",
-  `Please RSVP by ${EVENT.rsvpBy}.`,
 ].join("\n");
 
 const eventDetailsHtml = `
@@ -29,8 +30,6 @@ const eventDetailsHtml = `
     <div style="height:14px"></div>
     <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;">Reception &middot; ${EVENT.receptionTime}</div>
     <div style="font-size:14px;">${EVENT.receptionVenue}<br/>${EVENT.receptionAddress}</div>
-    <div style="height:18px"></div>
-    <div style="font-size:13px;font-style:italic;color:#8B7A70;">Please RSVP by ${EVENT.rsvpBy}.</div>
   </div>`;
 
 function wrap(inner: string) {
@@ -129,6 +128,8 @@ export async function sendRsvpEmails(opts: {
       `• Not attending: ${response.declinedCount}`,
       "",
       closing,
+      "",
+      `Made a mistake? Update your RSVP: ${SITE_URL}`,
       eventDetailsText,
     ].join("\n");
 
@@ -142,6 +143,10 @@ export async function sendRsvpEmails(opts: {
         <div>Not attending: <strong>${response.declinedCount}</strong></div>
       </div>
       <p style="margin:16px 0 0;font-size:16px;color:#B86478;">${closing}</p>
+      <p style="margin:22px 0 0;font-size:14px;color:#6B584E;text-align:center;">
+        Made a mistake?
+        <a href="${SITE_URL}" style="color:#B86478;font-weight:600;text-decoration:underline;">Update your RSVP</a>
+      </p>
     `);
 
     try {
