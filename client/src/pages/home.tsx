@@ -236,7 +236,6 @@ export default function Home() {
       setMatches(data.matches);
       setSearched(true);
       setGuest(null);
-      if (data.matches.length === 1) selectGuest(data.matches[0]);
     } catch (err: any) {
       setError(err?.message || "Something went wrong. Please try again.");
     } finally {
@@ -399,10 +398,10 @@ export default function Home() {
           </p>
         )}
 
-        {searched && matches.length > 1 && !guest && (
+        {searched && matches.length >= 1 && !guest && (
           <div className="mt-8" data-testid="section-choose">
             <p className="font-display text-center text-lg text-[hsl(346_33%_46%)]">
-              Which one are you?
+              {matches.length === 1 ? "Is this you?" : "Which one are you?"}
             </p>
             <ul className="mt-4 space-y-3">
               {matches.map((m) => (
