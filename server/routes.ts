@@ -155,15 +155,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const guest = guestId ? storage.getGuest(String(guestId)) : undefined;
     if (!guest) return res.status(404).json({ message: "Guest not found" });
 
+    // Guest can optionally type in names when the host didn't record any.
+    // Parse them first — they may shrink the "expected total" below invites.
+    const parsedTypedNames = readAdditionalNames(req.body?.additionalNames) || [];
+    const storedNames = (guest.additionalNames || []).filter(
+      (n) => n.firstName || n.lastName,
+    );
+    // Named list total = 1 (primary) + count of extras. Fall back to invites.
+    const namedTotal =
+      storedNames.length > 0
+        ? 1 + storedNames.length
+        : parsedTypedNames.length > 0
+          ? 1 + parsedTypedNames.length
+          : null;
+    const expectedTotal = namedTotal ?? guest.invites;
+
     let attendees = Number(req.body?.attendees);
     let declinedCount = Number(req.body?.declinedCount);
     if (!Number.isFinite(attendees) || attendees < 0) attendees = 0;
-    attendees = Math.min(Math.round(attendees), guest.invites);
+    attendees = Math.min(Math.round(attendees), expectedTotal);
     if (!Number.isFinite(declinedCount) || declinedCount < 0)
-      declinedCount = guest.invites - attendees;
-    declinedCount = Math.min(Math.round(declinedCount), guest.invites);
-    if (attendees + declinedCount !== guest.invites) {
-      declinedCount = guest.invites - attendees;
+      declinedCount = expectedTotal - attendees;
+    declinedCount = Math.min(Math.round(declinedCount), expectedTotal);
+    if (attendees + declinedCount !== expectedTotal) {
+      declinedCount = expectedTotal - attendees;
+    }
+
+    // If the guest typed names AND the host had none stored, persist them on
+    // the guest record so the admin dashboard and future emails show them.
+    if (storedNames.length === 0 && parsedTypedNames.length > 0) {
+      try {
+        storage.updateGuest(guest.id, { additionalNames: parsedTypedNames });
+        guest.additionalNames = parsedTypedNames;
+      } catch (err: any) {
+        console.warn("[rsvp] failed to save typed additionalNames:", err?.message || err);
+      }
     }
 
     const guestEmail = req.body?.guestEmail ? String(req.body.guestEmail).trim() : null;

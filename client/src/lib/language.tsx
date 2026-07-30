@@ -189,6 +189,17 @@ export const translations = {
     },
     hamptonArea: { en: "Panorama City area, California", es: "Zona de Panorama City, California" },
   },
+  addNames: {
+    heading: {
+      en: "Add your party's names (optional)",
+      es: "Agregue los nombres de su grupo (opcional)",
+    },
+    sub: {
+      en: "Fill in as many as you can \u2014 you'll then mark each person as attending or not attending. Skip to use a simple count instead.",
+      es: "Complete los que pueda \u2014 luego marcar\u00e1 a cada persona como asistir\u00e1 o no asistir\u00e1. Om\u00edtalos para usar solo un conteo.",
+    },
+    placeholder: { en: "Guest {n} full name", es: "Invitado {n} nombre completo" },
+  },
   guestList: {
     heading: {
       en: "Who from your party can join us?",

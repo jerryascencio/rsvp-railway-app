@@ -90,11 +90,25 @@ function eventDetailsHtmlFor(lang: Lang): string {
 const eventDetailsText = eventDetailsTextFor("en");
 const eventDetailsHtml = eventDetailsHtmlFor("en");
 
+// Guest confirmation emails set includeDetails=true so Mass & Reception show
+// in the main body. The host status email passes "" for detailsHtml.
 function wrap(inner: string, detailsHtml: string = eventDetailsHtml) {
   return `<div style="background:#FBF2EA;padding:28px;">
     <div style="max-width:560px;margin:0 auto;background:#FFFDFB;border:1px solid #E9D6C7;border-radius:10px;padding:28px;font-family:Georgia,serif;color:#4A3B34;line-height:1.6;">
       ${inner}
       ${detailsHtml}
+    </div>
+  </div>`;
+}
+
+// Version of wrap that places the event details BEFORE the closing content,
+// so Gmail's "trimmed" collapse doesn't hide the Mass & Reception info under
+// the fold. Used only by the guest confirmation email.
+function wrapWithDetailsFirst(details: string, footer: string) {
+  return `<div style="background:#FBF2EA;padding:28px;">
+    <div style="max-width:560px;margin:0 auto;background:#FFFDFB;border:1px solid #E9D6C7;border-radius:10px;padding:28px;font-family:Georgia,serif;color:#4A3B34;line-height:1.6;">
+      ${details}
+      ${footer}
     </div>
   </div>`;
 }
@@ -190,15 +204,17 @@ export async function sendRsvpEmails(opts: {
       s.yourResponseText,
       `• ${s.attending}: ${response.attendees}`,
       `• ${s.notAttending}: ${response.declinedCount}`,
+      eventDetailsTextFor(lang),
       "",
       closing,
       "",
       `${s.mistakePrefix} ${s.updateLink}: ${SITE_URL}`,
-      eventDetailsTextFor(lang),
     ].join("\n");
 
-    const guestHtml = wrap(
-      `
+    // Structure: intro + response → event details (Mass & Reception) → closing +
+    // "Update your RSVP" link. Details go BEFORE the closing so Gmail's
+    // auto-collapse doesn't hide them below the "trimmed content" fold.
+    const introBlock = `
       <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#B08968;">${s.thankYouEyebrow}</div>
       <h1 style="font-size:22px;color:#B86478;margin:8px 0 14px;">${s.thankYouHeading}</h1>
       <p style="margin:0 0 14px;">${s.hiGreeting(guest.firstName)}</p>
@@ -207,13 +223,17 @@ export async function sendRsvpEmails(opts: {
         <div>${s.attending}: <strong>${response.attendees}</strong> ${plural(response.attendees, lang)}</div>
         <div>${s.notAttending}: <strong>${response.declinedCount}</strong></div>
       </div>
-      <p style="margin:16px 0 0;font-size:16px;color:#B86478;">${closing}</p>
-      <p style="margin:22px 0 0;font-size:14px;color:#6B584E;text-align:center;">
+    `;
+    const closingBlock = `
+      <p style="margin:22px 0 0;font-size:16px;color:#B86478;">${closing}</p>
+      <p style="margin:14px 0 0;font-size:14px;color:#6B584E;text-align:center;">
         ${s.mistakePrefix}
         <a href="${SITE_URL}" style="color:#B86478;font-weight:600;text-decoration:underline;">${s.updateLink}</a>
       </p>
-    `,
-      eventDetailsHtmlFor(lang),
+    `;
+    const guestHtml = wrapWithDetailsFirst(
+      introBlock + eventDetailsHtmlFor(lang),
+      closingBlock,
     );
 
     try {

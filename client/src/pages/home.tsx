@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Minus, Plus, Search, Loader2 } from "lucide-react";
 import { EVENT } from "@shared/schema";
@@ -300,6 +300,10 @@ export default function Home() {
   // Keys are stable identifiers: "primary" for the main contact, and
   // "extra-<index>" for each additional household member.
   const [personStatus, setPersonStatus] = useState<Record<string, "yes" | "no" | null>>({});
+  // Optional: when the host didn't record additional names, the guest can type
+  // them in here. Length = invites - 1 (seats besides the primary). Each entry
+  // is trimmed on submit; blanks are ignored.
+  const [typedExtras, setTypedExtras] = useState<string[]>([]);
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -323,6 +327,11 @@ export default function Home() {
     setGuest(m);
     const extras = (m.additionalNames || []).filter((n) => n.firstName || n.lastName);
     const hasNamedList = extras.length > 0;
+
+    // Reset the optional "type in your party's names" inputs when a new party
+    // is chosen. Only relevant if the host didn't record additional names.
+    const seatsBesidesPrimary = Math.max(0, m.invites - 1);
+    setTypedExtras(hasNamedList ? [] : Array(seatsBesidesPrimary).fill(""));
 
     if (hasNamedList) {
       // Build a per-person map. If they previously RSVPed, we don't know WHICH
@@ -356,11 +365,53 @@ export default function Home() {
     setError(null);
   }
 
+  // When the guest types in optional names (host didn't record any), we
+  // transition into the per-person checklist. Seed personStatus on that
+  // transition so buttons start in an unanswered state.
+  useEffect(() => {
+    if (!guest) return;
+    const stored = (guest.additionalNames || []).filter(
+      (n) => n.firstName || n.lastName,
+    );
+    if (stored.length > 0) return; // stored path already seeded in selectGuest
+    const typedIndices = typedExtras
+      .map((s, i) => ({ s: s.trim(), i }))
+      .filter((x) => x.s.length > 0);
+    if (typedIndices.length === 0) return;
+    // Build the set of keys currently active in the checklist.
+    const activeKeys = new Set(["primary", ...typedIndices.map((x) => `extra-${x.i}`)]);
+    // If personStatus already covers exactly these keys, do nothing.
+    const currentKeys = Object.keys(personStatus);
+    const sameSize = currentKeys.length === activeKeys.size;
+    const sameKeys = sameSize && currentKeys.every((k) => activeKeys.has(k));
+    if (sameKeys) return;
+    // Preserve any prior yes/no answers; add null for new keys; drop removed keys.
+    const next: Record<string, "yes" | "no" | null> = {};
+    for (const k of activeKeys) next[k] = personStatus[k] ?? null;
+    setPersonStatus(next);
+    // Recompute attending/declined based on preserved answers.
+    let a = 0;
+    let d = 0;
+    for (const k of Object.keys(next)) {
+      if (next[k] === "yes") a += 1;
+      else if (next[k] === "no") d += 1;
+    }
+    setAttending(a);
+    setDeclined(d);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typedExtras, guest]);
+
   // Update one person in the checklist, then recompute attending/declined totals.
   function setPersonAttendance(key: string, status: "yes" | "no") {
     if (!guest) return;
-    const extras = (guest.additionalNames || []).filter((n) => n.firstName || n.lastName);
-    const keys = ["primary", ...extras.map((_, i) => `extra-${i}`)];
+    const stored = (guest.additionalNames || []).filter((n) => n.firstName || n.lastName);
+    const typedIdx = typedExtras
+      .map((s, i) => ({ s: s.trim(), i }))
+      .filter((x) => x.s.length > 0);
+    const keys =
+      stored.length > 0
+        ? ["primary", ...stored.map((_, i) => `extra-${i}`)]
+        : ["primary", ...typedIdx.map((x) => `extra-${x.i}`)];
     const next: Record<string, "yes" | "no" | null> = { ...personStatus, [key]: status };
     let a = 0;
     let d = 0;
@@ -399,14 +450,34 @@ export default function Home() {
   async function submitRsvp(e: React.FormEvent) {
     e.preventDefault();
     if (!guest) return;
-    const extrasCount = (guest.additionalNames || []).filter(
+    const storedExtras = (guest.additionalNames || []).filter(
       (n) => n.firstName || n.lastName,
     ).length;
-    const expectedTotal = extrasCount > 0 ? 1 + extrasCount : guest.invites;
+    const typedExtrasNow = typedExtras.map((s) => s.trim()).filter(Boolean).length;
+    const effectiveExtras =
+      storedExtras > 0 ? storedExtras : typedExtrasNow > 0 ? typedExtrasNow : 0;
+    const expectedTotal = effectiveExtras > 0 ? 1 + effectiveExtras : guest.invites;
     if (attending + declined !== expectedTotal) return;
     setSubmitting(true);
     setError(null);
     try {
+      // Optional names the guest typed in themselves (host didn't record any).
+      // Split "First Last" naively into firstName + lastName; single-word
+      // entries land in firstName. Blank entries are skipped.
+      const typedNamesPayload =
+        storedExtras === 0
+          ? typedExtras
+              .map((raw) => raw.trim())
+              .filter(Boolean)
+              .map((full) => {
+                const parts = full.split(/\s+/);
+                if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+                return {
+                  firstName: parts[0],
+                  lastName: parts.slice(1).join(" "),
+                };
+              })
+          : [];
       const res = await api<{ email: { guestSent: boolean } }>("POST", "/api/rsvp", {
         guestId: guest.id,
         attending: attending > 0 ? "yes" : "no",
@@ -415,6 +486,7 @@ export default function Home() {
         guestEmail: email.trim() || null,
         note: note.trim() || null,
         language,
+        additionalNames: typedNamesPayload.length ? typedNamesPayload : undefined,
       });
       setSubmitted({
         firstName: guest.firstName,
@@ -496,12 +568,14 @@ export default function Home() {
   // For households with a named guest list, "complete" means everyone has been
   // marked yes/no. For plus-N households, we still require attending + declined
   // to equal the invited count.
-  const hasNamedGuestList = guest
-    ? (guest.additionalNames || []).some((n) => n.firstName || n.lastName)
-    : false;
+  const storedExtrasCount = guest
+    ? (guest.additionalNames || []).filter((n) => n.firstName || n.lastName).length
+    : 0;
+  const typedExtrasCount = typedExtras.map((s) => s.trim()).filter(Boolean).length;
+  const usingNamedList = storedExtrasCount > 0 || typedExtrasCount > 0;
   const sumOk = guest
-    ? hasNamedGuestList
-      ? (1 + (guest.additionalNames || []).filter((n) => n.firstName || n.lastName).length) ===
+    ? usingNamedList
+      ? 1 + (storedExtrasCount > 0 ? storedExtrasCount : typedExtrasCount) ===
         attending + declined
       : sum === guest.invites
     : false;
@@ -704,22 +778,35 @@ export default function Home() {
 
             <form onSubmit={submitRsvp} className="mt-7 space-y-6">
               {(() => {
-                const extras = (guest.additionalNames || []).filter(
+                const storedExtras = (guest.additionalNames || []).filter(
                   (n) => n.firstName || n.lastName,
                 );
-                const hasNamedGuests = extras.length > 0;
+                const hasStoredNames = storedExtras.length > 0;
+
+                // If the host didn't record names, the guest can optionally type
+                // some in. Any non-blank entry promotes us to the checklist UI.
+                const typedNonBlank = typedExtras
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+                const useTyped = !hasStoredNames && typedNonBlank.length > 0;
+                const hasNamedGuests = hasStoredNames || useTyped;
 
                 if (hasNamedGuests) {
                   const primaryLast = (guest.lastName || "").trim();
                   const people: { key: string; name: string }[] = [
                     { key: "primary", name: guest.fullName },
-                    ...extras.map((n, i) => {
-                      const last = (n.lastName && n.lastName.trim()) || primaryLast;
-                      return {
-                        key: `extra-${i}`,
-                        name: [n.firstName, last].filter(Boolean).join(" "),
-                      };
-                    }),
+                    ...(hasStoredNames
+                      ? storedExtras.map((n, i) => {
+                          const last = (n.lastName && n.lastName.trim()) || primaryLast;
+                          return {
+                            key: `extra-${i}`,
+                            name: [n.firstName, last].filter(Boolean).join(" "),
+                          };
+                        })
+                      : typedExtras
+                          .map((raw, i) => ({ raw: raw.trim(), i }))
+                          .filter((x) => x.raw.length > 0)
+                          .map(({ raw, i }) => ({ key: `extra-${i}`, name: raw }))),
                   ];
                   const anyUnanswered = people.some((p) => !personStatus[p.key]);
 
@@ -792,8 +879,40 @@ export default function Home() {
                   );
                 }
 
+                // No stored names, no typed names — show the optional name inputs
+                // (only when the party is more than one person) AND the classic
+                // attending/declined steppers as a fallback.
+                const showAddNames = !hasStoredNames && guest.invites > 1;
+
                 return (
                   <>
+                    {showAddNames && (
+                      <div className="rounded-lg border border-dashed border-[hsl(28_31%_65%)] bg-[hsl(28_60%_98%)] p-4">
+                        <p className="font-display text-base text-[hsl(346_33%_46%)]">
+                          {t("addNames.heading")}
+                        </p>
+                        <p className="mt-1 text-sm text-[hsl(19_14%_45%)]">
+                          {t("addNames.sub")}
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          {typedExtras.map((val, i) => (
+                            <input
+                              key={i}
+                              type="text"
+                              value={val}
+                              onChange={(e) => {
+                                const next = [...typedExtras];
+                                next[i] = e.target.value;
+                                setTypedExtras(next);
+                              }}
+                              placeholder={t("addNames.placeholder", { n: i + 2 })}
+                              className="w-full rounded-md border border-[hsl(28_31%_65%)] bg-white px-3 py-2 text-sm text-[hsl(19_17%_28%)] outline-none focus:border-[hsl(346_37%_56%)]"
+                              data-testid={`input-add-name-${i}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="grid gap-5 sm:grid-cols-2">
                       <Stepper
                         label={t("rsvp.attendingLabel")}
