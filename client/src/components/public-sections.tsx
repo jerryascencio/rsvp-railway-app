@@ -258,13 +258,13 @@ export function ScheduleSection() {
       Icon: UtensilsCrossed,
     },
     {
-      time: "7:00 PM",
+      time: "7:30 PM",
       title: t("schedule.valsTitle"),
       body: t("schedule.valsBody"),
       Icon: Heart,
     },
     {
-      time: "8:00 PM",
+      time: "8:30 PM",
       title: t("schedule.danceTitle"),
       body: t("schedule.danceBody"),
       Icon: Music,
@@ -685,7 +685,7 @@ export function PadrinosSection() {
         />
         <PadrinoRow
           label={t("padrinos.coronacionLabel")}
-          names="Rosamaria Jimenez & Angela Arriola"
+          names="Rosamaria Jimenez & Angela Arreola"
         />
         <PadrinoRow
           label={t("padrinos.zapatosLabel")}
