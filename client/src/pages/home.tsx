@@ -586,12 +586,19 @@ export default function Home() {
                       (m.lastName || "").toLowerCase().includes(needle) ||
                       `${m.firstName} ${m.lastName}`.toLowerCase().includes(needle) ||
                       (m.email || "").toLowerCase().includes(needle));
+                  const primaryLast = (m.lastName || "").trim();
                   const matchedExtra =
                     !primaryHit && needle
                       ? (m.additionalNames || []).find((n) => {
                           const f = (n.firstName || "").toLowerCase();
-                          const l = (n.lastName || "").toLowerCase();
-                          const full = `${n.firstName} ${n.lastName}`.trim().toLowerCase();
+                          // Fall back to primary's last name if the extra doesn't
+                          // have one recorded (e.g. "Adrian" in the Ascencio party).
+                          const effectiveLast =
+                            (n.lastName && n.lastName.trim()) || primaryLast;
+                          const l = effectiveLast.toLowerCase();
+                          const full = `${n.firstName} ${effectiveLast}`
+                            .trim()
+                            .toLowerCase();
                           return (
                             (f && f.includes(needle)) ||
                             (l && l.includes(needle)) ||
@@ -599,9 +606,14 @@ export default function Home() {
                           );
                         })
                       : undefined;
+                  // Prefer the extra's own last name; if blank, borrow the
+                  // primary's so the headline reads e.g. "Adrian Ascencio".
+                  const matchedExtraLast =
+                    (matchedExtra?.lastName && matchedExtra.lastName.trim()) ||
+                    primaryLast;
                   const headline = matchedExtra
                     ? `${matchedExtra.firstName}${
-                        matchedExtra.lastName ? " " + matchedExtra.lastName : ""
+                        matchedExtraLast ? " " + matchedExtraLast : ""
                       }`.trim()
                     : m.fullName;
                   const subLine = matchedExtra
@@ -698,12 +710,16 @@ export default function Home() {
                 const hasNamedGuests = extras.length > 0;
 
                 if (hasNamedGuests) {
+                  const primaryLast = (guest.lastName || "").trim();
                   const people: { key: string; name: string }[] = [
                     { key: "primary", name: guest.fullName },
-                    ...extras.map((n, i) => ({
-                      key: `extra-${i}`,
-                      name: [n.firstName, n.lastName].filter(Boolean).join(" "),
-                    })),
+                    ...extras.map((n, i) => {
+                      const last = (n.lastName && n.lastName.trim()) || primaryLast;
+                      return {
+                        key: `extra-${i}`,
+                        name: [n.firstName, last].filter(Boolean).join(" "),
+                      };
+                    }),
                   ];
                   const anyUnanswered = people.some((p) => !personStatus[p.key]);
 

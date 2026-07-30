@@ -234,10 +234,15 @@ export class Storage {
       const full = `${g.firstName} ${g.lastName}`.trim().toLowerCase();
       if (full.includes(needle)) return true;
       // Additional household members: match first, last, or full name.
+      // If an additional guest has no last name recorded, fall back to the
+      // primary contact's last name (e.g. "Adrian" in the Ascencio household
+      // should still match a search for "Ascencio").
+      const primaryLast = (g.lastName || "").trim();
       for (const n of g.additionalNames) {
         if (n.firstName && n.firstName.toLowerCase().includes(needle)) return true;
-        if (n.lastName && n.lastName.toLowerCase().includes(needle)) return true;
-        const nFull = `${n.firstName} ${n.lastName}`.trim().toLowerCase();
+        const effectiveLast = (n.lastName && n.lastName.trim()) || primaryLast;
+        if (effectiveLast && effectiveLast.toLowerCase().includes(needle)) return true;
+        const nFull = `${n.firstName} ${effectiveLast}`.trim().toLowerCase();
         if (nFull && nFull.includes(needle)) return true;
       }
       return false;
