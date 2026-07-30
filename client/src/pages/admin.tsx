@@ -974,6 +974,20 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                             dr.matchedExtra.lastName ? " " + dr.matchedExtra.lastName : ""
                           }`.trim()
                         : primaryName;
+                      // Highlight the matched substring inside the row's headline name.
+                      // Split into [before, match, after]; wrap match in a subtle pill.
+                      const needle = filter.trim();
+                      let namePrefix = rowName;
+                      let nameMatch = "";
+                      let nameSuffix = "";
+                      if (needle) {
+                        const idx = rowName.toLowerCase().indexOf(needle.toLowerCase());
+                        if (idx >= 0) {
+                          namePrefix = rowName.slice(0, idx);
+                          nameMatch = rowName.slice(idx, idx + needle.length);
+                          nameSuffix = rowName.slice(idx + needle.length);
+                        }
+                      }
                       // Shared "open household edit modal" handler used by the pencil
                       // button and the match badge.
                       const openEdit = () =>
@@ -1004,7 +1018,22 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                         >
                           <td className="px-4 py-3 font-medium text-neutral-900">
                             <div className="flex items-center gap-2">
-                              <span>{rowName}</span>
+                              <span>
+                                {nameMatch ? (
+                                  <>
+                                    {namePrefix}
+                                    <mark
+                                      className="rounded bg-[hsl(48_92%_82%)] px-0.5 text-neutral-900"
+                                      data-testid={`mark-name-${dr.key}`}
+                                    >
+                                      {nameMatch}
+                                    </mark>
+                                    {nameSuffix}
+                                  </>
+                                ) : (
+                                  rowName
+                                )}
+                              </span>
                               {filter.trim() && dr.key.endsWith(":primary") && (
                                 <button
                                   type="button"
