@@ -984,7 +984,25 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                           data-testid={`row-guest-${dr.key}`}
                         >
                           <td className="px-4 py-3 font-medium text-neutral-900">
-                            <div>{rowName}</div>
+                            <div className="flex items-center gap-2">
+                              <span>{rowName}</span>
+                              {filter.trim() && dr.key.endsWith(":primary") && (
+                                <span
+                                  className="inline-flex items-center rounded-full bg-[hsl(346_60%_96%)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[hsl(346_45%_45%)] ring-1 ring-inset ring-[hsl(346_45%_85%)]"
+                                  data-testid={`badge-match-${dr.key}`}
+                                >
+                                  Match · primary
+                                </span>
+                              )}
+                              {filter.trim() && dr.key.includes(":extra-") && (
+                                <span
+                                  className="inline-flex items-center rounded-full bg-[hsl(28_60%_95%)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[hsl(19_35%_35%)] ring-1 ring-inset ring-[hsl(28_31%_75%)]"
+                                  data-testid={`badge-match-${dr.key}`}
+                                >
+                                  Match · party member
+                                </span>
+                              )}
+                            </div>
                             {dr.matchedExtra ? (
                               <div
                                 className="mt-0.5 max-w-[240px] truncate text-xs font-normal text-neutral-400"
