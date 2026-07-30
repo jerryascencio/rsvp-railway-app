@@ -974,6 +974,25 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                             dr.matchedExtra.lastName ? " " + dr.matchedExtra.lastName : ""
                           }`.trim()
                         : primaryName;
+                      // Shared "open household edit modal" handler used by the pencil
+                      // button and the match badge.
+                      const openEdit = () =>
+                        setDraft({
+                          id: g.id,
+                          firstName: g.firstName,
+                          lastName: g.lastName,
+                          phone: g.phone,
+                          email: g.email || "",
+                          invites: g.invites,
+                          additionalNames: resizeAdditional(
+                            g.additionalNames.map((n) => ({ ...n })),
+                            g.invites,
+                          ),
+                          attendees: r ? String(r.attendees) : "",
+                          declinedCount: r ? String(r.declinedCount) : "",
+                          note: r?.note || "",
+                          hasResponse: !!r,
+                        });
                       // Subline: for an extra-matched row, note the household party.
                       // For a primary row (when the household has extras), keep the
                       // classic "Also in party" listing.
@@ -987,20 +1006,26 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                             <div className="flex items-center gap-2">
                               <span>{rowName}</span>
                               {filter.trim() && dr.key.endsWith(":primary") && (
-                                <span
-                                  className="inline-flex items-center rounded-full bg-[hsl(346_60%_96%)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[hsl(346_45%_45%)] ring-1 ring-inset ring-[hsl(346_45%_85%)]"
+                                <button
+                                  type="button"
+                                  onClick={openEdit}
+                                  title={`Edit ${primaryName}'s household`}
+                                  className="inline-flex cursor-pointer items-center rounded-full bg-[hsl(346_60%_96%)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[hsl(346_45%_45%)] ring-1 ring-inset ring-[hsl(346_45%_85%)] transition hover:bg-[hsl(346_60%_92%)] hover:text-[hsl(346_45%_35%)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(346_45%_55%)]"
                                   data-testid={`badge-match-${dr.key}`}
                                 >
                                   Match · primary
-                                </span>
+                                </button>
                               )}
                               {filter.trim() && dr.key.includes(":extra-") && (
-                                <span
-                                  className="inline-flex items-center rounded-full bg-[hsl(28_60%_95%)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[hsl(19_35%_35%)] ring-1 ring-inset ring-[hsl(28_31%_75%)]"
+                                <button
+                                  type="button"
+                                  onClick={openEdit}
+                                  title={`Edit ${primaryName}'s household`}
+                                  className="inline-flex cursor-pointer items-center rounded-full bg-[hsl(28_60%_95%)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[hsl(19_35%_35%)] ring-1 ring-inset ring-[hsl(28_31%_75%)] transition hover:bg-[hsl(28_60%_90%)] hover:text-[hsl(19_35%_25%)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(28_45%_55%)]"
                                   data-testid={`badge-match-${dr.key}`}
                                 >
                                   Match · party member
-                                </span>
+                                </button>
                               )}
                             </div>
                             {dr.matchedExtra ? (
@@ -1071,24 +1096,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                             <Button
                               size="icon"
                               variant="ghost"
-                              onClick={() =>
-                                setDraft({
-                                  id: g.id,
-                                  firstName: g.firstName,
-                                  lastName: g.lastName,
-                                  phone: g.phone,
-                                  email: g.email || "",
-                                  invites: g.invites,
-                                  additionalNames: resizeAdditional(
-                                    g.additionalNames.map((n) => ({ ...n })),
-                                    g.invites,
-                                  ),
-                                  attendees: r ? String(r.attendees) : "",
-                                  declinedCount: r ? String(r.declinedCount) : "",
-                                  note: r?.note || "",
-                                  hasResponse: !!r,
-                                })
-                              }
+                              onClick={openEdit}
                               data-testid={`button-edit-${g.id}`}
                             >
                               <Pencil className="h-4 w-4" />
