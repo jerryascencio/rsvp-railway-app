@@ -410,6 +410,8 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Household-level rows (status filter applied). Used for CSV and the
+  // non-filtered view.
   const rows = useMemo(() => {
     const needle = filter.trim().toLowerCase();
     return guests.filter((g) => {
@@ -431,6 +433,71 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       return hay.includes(needle);
     });
   }, [guests, filter, statusFilter]);
+
+  // When the admin is filtering by a name, expand household rows into one row
+  // per matched person. Each display row keeps a reference back to its
+  // household guest so Party Size / Attending / Declined / Note / Actions all
+  // still work.
+  type DisplayRow = {
+    key: string;
+    guest: (typeof guests)[number];
+    // The person shown in this row's Name cell. Null = primary contact.
+    matchedExtra: { firstName: string; lastName: string } | null;
+  };
+  const displayRows: DisplayRow[] = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    // No name filter → one row per household, unchanged behavior.
+    if (!needle) {
+      return rows.map((g) => ({ key: g.id, guest: g, matchedExtra: null }));
+    }
+
+    // Numeric / phone / email searches: don't split into per-person rows.
+    const digits = needle.replace(/\D/g, "");
+    const isPhoneSearch = digits.length >= 3;
+    const isEmailSearch = needle.includes("@");
+    if (isPhoneSearch || isEmailSearch) {
+      return rows.map((g) => ({ key: g.id, guest: g, matchedExtra: null }));
+    }
+
+    // Name filter → emit one row per matched person in the household.
+    const out: DisplayRow[] = [];
+    for (const g of rows) {
+      const primaryLast = (g.lastName || "").trim();
+      const primaryFullLower = `${g.firstName ?? ""} ${g.lastName ?? ""}`
+        .trim()
+        .toLowerCase();
+      const primaryHit =
+        (g.firstName || "").toLowerCase().includes(needle) ||
+        (g.lastName || "").toLowerCase().includes(needle) ||
+        primaryFullLower.includes(needle);
+      // Match extras (empty last name inherits the primary's).
+      const extraMatches = (g.additionalNames || [])
+        .map((n, i) => {
+          const first = (n.firstName || "").trim();
+          const last = (n.lastName && n.lastName.trim()) || primaryLast;
+          const full = `${first} ${last}`.trim().toLowerCase();
+          const hit =
+            first.toLowerCase().includes(needle) ||
+            (last && last.toLowerCase().includes(needle)) ||
+            full.includes(needle);
+          return hit ? { i, n: { firstName: first, lastName: last } } : null;
+        })
+        .filter((x): x is { i: number; n: { firstName: string; lastName: string } } => !!x);
+
+      if (primaryHit) {
+        out.push({ key: `${g.id}:primary`, guest: g, matchedExtra: null });
+      }
+      for (const m of extraMatches) {
+        out.push({ key: `${g.id}:extra-${m.i}`, guest: g, matchedExtra: m.n });
+      }
+      // If neither primary nor any extra matched by name, the household must
+      // have qualified via note/phone/email/status text. Show it as a single row.
+      if (!primaryHit && extraMatches.length === 0) {
+        out.push({ key: `${g.id}:household`, guest: g, matchedExtra: null });
+      }
+    }
+    return out;
+  }, [rows, filter]);
 
   async function saveGuest() {
     if (!draft) return;
@@ -885,7 +952,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                         </td>
                       </tr>
                     )}
-                    {!loading && rows.length === 0 && (
+                    {!loading && displayRows.length === 0 && (
                       <tr>
                         <td
                           colSpan={9}
@@ -897,20 +964,45 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                         </td>
                       </tr>
                     )}
-                    {rows.map((g) => {
+                    {displayRows.map((dr) => {
+                      const g = dr.guest;
                       const r = g.response;
+                      const primaryName = g.fullName || `${g.firstName} ${g.lastName}`;
+                      // Row headline: the matched person (if any), else the primary contact.
+                      const rowName = dr.matchedExtra
+                        ? `${dr.matchedExtra.firstName}${
+                            dr.matchedExtra.lastName ? " " + dr.matchedExtra.lastName : ""
+                          }`.trim()
+                        : primaryName;
+                      // Subline: for an extra-matched row, note the household party.
+                      // For a primary row (when the household has extras), keep the
+                      // classic "Also in party" listing.
                       return (
-                        <tr key={g.id} className="hover:bg-neutral-50" data-testid={`row-guest-${g.id}`}>
+                        <tr
+                          key={dr.key}
+                          className="hover:bg-neutral-50"
+                          data-testid={`row-guest-${dr.key}`}
+                        >
                           <td className="px-4 py-3 font-medium text-neutral-900">
-                            <div>{g.fullName || `${g.firstName} ${g.lastName}`}</div>
-                            {g.additionalNames.length > 0 && (
+                            <div>{rowName}</div>
+                            {dr.matchedExtra ? (
                               <div
                                 className="mt-0.5 max-w-[240px] truncate text-xs font-normal text-neutral-400"
-                                title={`Also in party: ${alsoInParty(g.additionalNames)}`}
-                                data-testid={`text-also-in-party-${g.id}`}
+                                title={`Part of ${primaryName}'s party`}
+                                data-testid={`text-part-of-${dr.key}`}
                               >
-                                Also in party: {alsoInParty(g.additionalNames)}
+                                Part of {primaryName}'s party
                               </div>
+                            ) : (
+                              g.additionalNames.length > 0 && (
+                                <div
+                                  className="mt-0.5 max-w-[240px] truncate text-xs font-normal text-neutral-400"
+                                  title={`Also in party: ${alsoInParty(g.additionalNames)}`}
+                                  data-testid={`text-also-in-party-${g.id}`}
+                                >
+                                  Also in party: {alsoInParty(g.additionalNames)}
+                                </div>
+                              )
                             )}
                           </td>
                           <td className="px-4 py-3 text-neutral-600">
