@@ -1029,13 +1029,15 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                               )}
                             </div>
                             {dr.matchedExtra ? (
-                              <div
-                                className="mt-0.5 max-w-[240px] truncate text-xs font-normal text-neutral-400"
-                                title={`Part of ${primaryName}'s party`}
-                                data-testid={`text-part-of-${dr.key}`}
+                              <button
+                                type="button"
+                                onClick={openEdit}
+                                title={`Open ${primaryName}'s household`}
+                                className="mt-0.5 block max-w-[240px] truncate text-left text-xs font-normal text-neutral-500 underline decoration-neutral-300 decoration-dotted underline-offset-2 transition hover:text-[hsl(346_45%_45%)] hover:decoration-[hsl(346_45%_55%)] focus:outline-none focus-visible:text-[hsl(346_45%_45%)]"
+                                data-testid={`link-part-of-${dr.key}`}
                               >
                                 Part of {primaryName}'s party
-                              </div>
+                              </button>
                             ) : (
                               g.additionalNames.length > 0 && (
                                 <div
