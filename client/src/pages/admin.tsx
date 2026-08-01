@@ -585,13 +585,22 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
   async function handleUpload(file: File) {
     const text = await file.text();
     try {
-      const res = await api<{ added: number; updated: number; skipped: number }>(
-        "POST",
-        "/api/admin/guests/import",
-        { csv: text },
-      );
-      setImportResult(`Added ${res.added}, updated ${res.updated}, skipped ${res.skipped}.`);
+      const res = await api<{
+        added: number;
+        updated: number;
+        skipped: number;
+        totals: { totalHouseholds: number; totalInvited: number };
+      }>("POST", "/api/admin/guests/import", { csv: text });
       await load();
+      // Include the resulting head count so Jerry can eyeball whether the
+      // import matches the source spreadsheet without switching tabs.
+      const totalsAfter = res.totals;
+      const summary =
+        `Added ${res.added}, updated ${res.updated}, skipped ${res.skipped}. · ` +
+        `Now ${totalsAfter?.totalHouseholds ?? "?"} households, ${
+          totalsAfter?.totalInvited ?? "?"
+        } total invited.`;
+      setImportResult(summary);
     } catch (err: any) {
       toast({ title: "Upload failed", description: err?.message, variant: "destructive" });
     }
