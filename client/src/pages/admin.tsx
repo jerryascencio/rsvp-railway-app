@@ -18,6 +18,10 @@ import {
   Search,
   ExternalLink,
   RefreshCw,
+  MessageSquare,
+  Send,
+  SkipForward,
+  Check,
 } from "lucide-react";
 import type { AdditionalName, GuestWithResponse, Totals } from "@shared/schema";
 import { api, apiUrl, setAuthToken, getAuthToken } from "@/lib/api";
@@ -353,12 +357,350 @@ function StatCard({
   );
 }
 
+// ============================================================================
+// Hit em up dialog
+// ----------------------------------------------------------------------------
+// Compose a custom SMS body with {field} placeholders, then walk through the
+// current filter's recipients one-by-one. Each Send opens iMessage via the
+// `sms:` URL scheme (works on iPhone: opens Messages with To + Body prefilled).
+// After Jerry sends and comes back to Safari, the dialog is waiting with the
+// next recipient queued and the Next button auto-focused.
+// ============================================================================
+
+/** Extract a 10+ digit phone from a free-form string. Returns "" if the value
+ *  doesn't look like a real US phone number (e.g. "WhatsApp", "None", empty). */
+function normalizeSmsPhone(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 10) return "";
+  // Prefix + and country code (assume US if 10 digits).
+  if (digits.length === 10) return `+1${digits}`;
+  return `+${digits}`;
+}
+
+/** Substitute {Field Name} placeholders in the template using guest fields. */
+function renderTemplate(template: string, guest: GuestWithResponse): string {
+  const values: Record<string, string> = {
+    "name for text": guest.nameForText || guest.partyName || guest.firstName,
+    "name of party": guest.partyName || `${guest.firstName} ${guest.lastName}`.trim(),
+    "first name": guest.firstName,
+    "last name": guest.lastName,
+    "full names": [
+      `${guest.firstName} ${guest.lastName}`.trim(),
+      ...(guest.additionalNames || []).map(
+        (a) => `${a.firstName} ${a.lastName}`.trim(),
+      ),
+    ]
+      .filter(Boolean)
+      .join(" and "),
+    "total invites": String(guest.invites),
+    "invites": String(guest.invites),
+    "adults": String((guest as any).adults ?? ""),
+    "kids": String((guest as any).kids ?? ""),
+    "phone": guest.phone,
+    "language": (guest as any).language || "",
+    "invitation sent": (guest as any).invitationSent || "",
+    "rsvp link": "www.LeahAEspinoza.com",
+    "link": "www.LeahAEspinoza.com",
+    "response status": guest.response
+      ? guest.response.attendees > 0
+        ? "attending"
+        : "not attending"
+      : "pending",
+    "attending count": String(guest.response?.attendees ?? 0),
+    "declined count": String(guest.response?.declinedCount ?? 0),
+  };
+  return template.replace(/\{([^}]+)\}/g, (_m, key) => {
+    const norm = String(key).trim().toLowerCase();
+    return values[norm] ?? `{${key}}`;
+  });
+}
+
+const FIELD_CHIPS = [
+  "Name For Text",
+  "First Name",
+  "Name of Party",
+  "Total Invites",
+  "RSVP Link",
+  "Adults",
+  "Kids",
+  "Language",
+];
+
+const DEFAULT_TEMPLATES: Record<string, string> = {
+  pending:
+    "Hi {Name For Text}, this is Leah's mom. Here's the RSVP link for your party of {Total Invites}: {RSVP Link}. Please log in with your phone number to let us know if you can make it. Thanks!",
+  attending:
+    "Hi {Name For Text}, thanks so much for confirming your party of {Total Invites}! Event details and updates at {RSVP Link}.",
+  declined:
+    "Hi {Name For Text}, sorry you can't make it. If plans change, update your RSVP at {RSVP Link}.",
+  all:
+    "Hi {Name For Text}, here's the RSVP link for your party of {Total Invites}: {RSVP Link}.",
+};
+
+function HitEmUpDialog({
+  open,
+  onOpenChange,
+  recipients,
+  filterLabel,
+  onLogged,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  recipients: GuestWithResponse[];
+  filterLabel: "pending" | "attending" | "declined" | "all";
+  onLogged: () => void;
+}) {
+  const [template, setTemplate] = useState<string>(
+    DEFAULT_TEMPLATES[filterLabel] || DEFAULT_TEMPLATES.all,
+  );
+  const [index, setIndex] = useState(0);
+  const [started, setStarted] = useState(false);
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set());
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const nextButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  // Reset draft when the filter changes (opening the dialog with a different
+  // slice should show a sensible default).
+  useEffect(() => {
+    if (open) {
+      setTemplate(DEFAULT_TEMPLATES[filterLabel] || DEFAULT_TEMPLATES.all);
+      setIndex(0);
+      setStarted(false);
+      setSentIds(new Set());
+    }
+  }, [open, filterLabel]);
+
+  // Split recipients into sendable (real phone) vs. skipped (no SMS phone).
+  const sendable = useMemo(
+    () => recipients.filter((r) => normalizeSmsPhone(r.phone)),
+    [recipients],
+  );
+  const skippedNoPhone = recipients.length - sendable.length;
+  const current = sendable[index];
+  const done = started && index >= sendable.length;
+
+  // After tapping Send + returning to Safari, auto-focus the Next button so
+  // Jerry can tap-tap-tap through the list without hunting for it.
+  useEffect(() => {
+    if (started && !done && nextButtonRef.current) {
+      nextButtonRef.current.focus();
+    }
+  }, [index, started, done]);
+
+  function insertChip(field: string) {
+    const ta = textareaRef.current;
+    if (!ta) {
+      setTemplate((t) => t + `{${field}}`);
+      return;
+    }
+    const start = ta.selectionStart ?? template.length;
+    const end = ta.selectionEnd ?? template.length;
+    const next = template.slice(0, start) + `{${field}}` + template.slice(end);
+    setTemplate(next);
+    // Restore focus + caret after the inserted token.
+    requestAnimationFrame(() => {
+      ta.focus();
+      const caret = start + field.length + 2;
+      ta.setSelectionRange(caret, caret);
+    });
+  }
+
+  async function sendCurrent() {
+    if (!current) return;
+    const phone = normalizeSmsPhone(current.phone);
+    if (!phone) return; // Should never happen — sendable filter already excluded these
+    const body = renderTemplate(template, current);
+    // iOS Safari uses `?body=` as the separator for the first param, then `&`
+    // for subsequent ones. Since we only have one param, `?` is correct.
+    // (Non-iOS phones also accept both, but `?` is the standard URL-scheme form.)
+    const url = `sms:${phone}?&body=${encodeURIComponent(body)}`;
+    // Fire-and-forget log. Don't await — iMessage should open instantly.
+    api("POST", "/api/admin/messages/log", {
+      guestId: current.id,
+      phone,
+      body,
+    }).catch(() => {
+      /* logging failure shouldn't block Jerry from sending */
+    });
+    setSentIds((s) => new Set(s).add(current.id));
+    // Open Messages. Safari on iOS handles sms: as a URL scheme.
+    window.location.href = url;
+  }
+
+  function advance() {
+    setIndex((i) => i + 1);
+  }
+
+  function startBatch() {
+    setStarted(true);
+    setIndex(0);
+    // Send the first one immediately.
+    setTimeout(() => sendCurrent(), 0);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            Hit em up — {filterLabel}
+          </DialogTitle>
+          <DialogDescription>
+            {recipients.length} household{recipients.length === 1 ? "" : "s"} in this filter ·{" "}
+            {sendable.length} with a phone{skippedNoPhone > 0 && ` · ${skippedNoPhone} skipped (no SMS number)`}
+          </DialogDescription>
+        </DialogHeader>
+
+        {!started ? (
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="template" className="text-xs font-medium text-neutral-700">
+                Your message
+              </Label>
+              <Textarea
+                id="template"
+                ref={textareaRef as any}
+                value={template}
+                onChange={(e) => setTemplate(e.target.value)}
+                rows={5}
+                className="mt-1 text-sm"
+                data-testid="input-message-template"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <div className="text-xs font-medium text-neutral-700">Insert field</div>
+              <div className="flex flex-wrap gap-1.5">
+                {FIELD_CHIPS.map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => insertChip(f)}
+                    className="rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-xs text-neutral-700 hover:bg-neutral-100"
+                    data-testid={`button-chip-${f.replace(/\s+/g, "-").toLowerCase()}`}
+                  >
+                    {`{${f}}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {sendable[0] && (
+              <div className="rounded border border-neutral-200 bg-neutral-50 p-2.5">
+                <div className="mb-1 text-[10px] uppercase tracking-wide text-neutral-500">
+                  Preview for {sendable[0].nameForText || sendable[0].partyName || sendable[0].firstName}
+                </div>
+                <div className="whitespace-pre-wrap text-xs text-neutral-800">
+                  {renderTemplate(template, sendable[0])}
+                </div>
+              </div>
+            )}
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={startBatch}
+                disabled={sendable.length === 0}
+                data-testid="button-start-messaging"
+              >
+                <Send className="mr-1.5 h-3.5 w-3.5" />
+                Start messaging ({sendable.length})
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : done ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+              <Check className="h-4 w-4" />
+              Done. Sent {sentIds.size} of {sendable.length}.
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={() => {
+                  onOpenChange(false);
+                  onLogged();
+                }}
+              >
+                Close
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs text-neutral-600">
+              <span>
+                {index + 1} of {sendable.length} · {sentIds.size} messaged
+              </span>
+              <span className="font-mono">{current?.phone}</span>
+            </div>
+            <div className="rounded border border-neutral-200 bg-neutral-50 p-3">
+              <div className="mb-1 text-xs font-medium text-neutral-700">
+                {current?.nameForText || current?.partyName || current?.firstName}
+                {current && ((current as any).messageCount || sentIds.has(current.id)) && (
+                  <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">
+                    already messaged
+                  </span>
+                )}
+              </div>
+              <div className="whitespace-pre-wrap text-xs text-neutral-800">
+                {current ? renderTemplate(template, current) : ""}
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:flex-col sm:items-stretch">
+              <div className="flex gap-2">
+                <Button
+                  ref={nextButtonRef}
+                  className="flex-1"
+                  onClick={() => {
+                    sendCurrent();
+                  }}
+                  data-testid="button-send-current"
+                >
+                  <Send className="mr-1.5 h-3.5 w-3.5" />
+                  Send to {current?.nameForText || current?.partyName || "this person"}
+                </Button>
+                <Button variant="outline" onClick={advance} data-testid="button-skip-current">
+                  <SkipForward className="mr-1.5 h-3.5 w-3.5" />
+                  Skip
+                </Button>
+              </div>
+              <div className="flex justify-between gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onLogged();
+                  }}
+                >
+                  Stop
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={advance}
+                  disabled={!sentIds.has(current?.id || "")}
+                  data-testid="button-next-recipient"
+                >
+                  Next →
+                </Button>
+              </div>
+            </DialogFooter>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void }) {
   const { toast } = useToast();
   const [guests, setGuests] = useState<GuestWithResponse[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [hitEmUpOpen, setHitEmUpOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "attending" | "declined" | "pending">(
     "all",
   );
@@ -926,6 +1268,16 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                   Refresh
                 </Button>
+                <Button
+                  size="sm"
+                  className="bg-[hsl(346_37%_56%)] text-white hover:bg-[hsl(346_45%_45%)]"
+                  onClick={() => setHitEmUpOpen(true)}
+                  disabled={rows.length === 0}
+                  data-testid="button-hit-em-up"
+                >
+                  <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+                  Hit em up ({rows.length})
+                </Button>
                 <Button size="sm" variant="outline" onClick={downloadCsv} data-testid="button-download-csv">
                   <Download className="mr-1.5 h-3.5 w-3.5" />
                   Download CSV
@@ -1162,6 +1514,19 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                           <td className="px-4 py-3 text-neutral-600">
                             <div>{g.phone || "—"}</div>
                             <div className="text-xs text-neutral-400">{g.email || ""}</div>
+                            {(g.messageCount ?? 0) > 0 && (
+                              <div
+                                className="mt-1 inline-flex items-center gap-1 rounded-full bg-[hsl(346_37%_56%)]/10 px-1.5 py-0.5 text-[10px] font-medium text-[hsl(346_45%_45%)]"
+                                title={
+                                  g.lastMessagedAt
+                                    ? `Last messaged ${new Date(g.lastMessagedAt).toLocaleString()}`
+                                    : undefined
+                                }
+                              >
+                                <MessageSquare className="h-2.5 w-2.5" />
+                                {g.messageCount} sent
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 py-3 text-neutral-700">{g.invites}</td>
                           <td className="px-4 py-3">
@@ -1495,6 +1860,14 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <HitEmUpDialog
+        open={hitEmUpOpen}
+        onOpenChange={setHitEmUpOpen}
+        recipients={rows}
+        filterLabel={statusFilter}
+        onLogged={() => load()}
+      />
     </div>
   );
 }

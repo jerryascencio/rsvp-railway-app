@@ -5,6 +5,9 @@ import { z } from "zod";
 export const guests = sqliteTable("guests", {
   id: text("id").primaryKey(),
   firstName: text("first_name").notNull(),
+  /** How Leah refers to them when texting (e.g. "Concho & Maria", "Marty").
+   *  Falls back to partyName or firstName when blank. */
+  nameForText: text("name_for_text").notNull().default(""),
   lastName: text("last_name").notNull().default(""),
   fullName: text("full_name").notNull().default(""),
   /**
@@ -16,6 +19,13 @@ export const guests = sqliteTable("guests", {
   phone: text("phone").notNull().default(""),
   email: text("email"),
   invites: integer("invites").notNull().default(1),
+  /** Adults and kids counts from the source spreadsheet (for reference / templates). */
+  adults: integer("adults").notNull().default(0),
+  kids: integer("kids").notNull().default(0),
+  /** "English" / "Spanish" / "" — from the Language column. */
+  language: text("language").notNull().default(""),
+  /** Free-form status column from the spreadsheet (e.g. "Pending Silvia's confirmation"). */
+  invitationSent: text("invitation_sent").notNull().default(""),
   /** JSON-encoded Array<{firstName,lastName}>. SQLite has no array type. */
   additionalNames: text("additional_names"),
 });
@@ -34,6 +44,11 @@ export const insertGuestSchema = createInsertSchema(guests)
   .extend({
     additionalNames: additionalNamesSchema.optional(),
     partyName: z.string().optional(),
+    nameForText: z.string().optional(),
+    adults: z.number().optional(),
+    kids: z.number().optional(),
+    language: z.string().optional(),
+    invitationSent: z.string().optional(),
   });
 export type InsertGuestInput = z.infer<typeof insertGuestSchema>;
 
@@ -77,6 +92,17 @@ export const responses = sqliteTable("responses", {
   updatedAt: integer("updated_at").notNull(),
 });
 
+/** One row per iMessage link generated for a guest. We can't confirm iOS
+ *  actually delivered the message — this is a log of intent to send. */
+export const messageLogs = sqliteTable("message_logs", {
+  id: text("id").primaryKey(),
+  guestId: text("guest_id").notNull(),
+  phone: text("phone").notNull(),
+  body: text("body").notNull(),
+  sentAt: integer("sent_at").notNull(),
+});
+export type MessageLog = typeof messageLogs.$inferSelect;
+
 export const admins = sqliteTable("admins", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -110,6 +136,10 @@ export type Settings = typeof settings.$inferSelect;
 /** Guest joined with its response, as returned by the API. */
 export type GuestWithResponse = Guest & {
   response: RsvpResponse | null;
+  /** Total iMessage sends recorded via Hit em up (0 if never messaged). */
+  messageCount?: number;
+  /** Unix ms of last message we opened for this guest, or null. */
+  lastMessagedAt?: number | null;
 };
 
 export type Totals = {

@@ -1,5 +1,6 @@
-import { guests, responses, admins, settings } from "@shared/schema";
+import { guests, responses, admins, settings, messageLogs } from "@shared/schema";
 import type {
+  MessageLog,
   Guest,
   GuestRow,
   InsertGuest,
@@ -33,6 +34,11 @@ CREATE TABLE IF NOT EXISTS guests (
   last_name TEXT NOT NULL DEFAULT '',
   full_name TEXT NOT NULL DEFAULT '',
   party_name TEXT NOT NULL DEFAULT '',
+  name_for_text TEXT NOT NULL DEFAULT '',
+  adults INTEGER NOT NULL DEFAULT 0,
+  kids INTEGER NOT NULL DEFAULT 0,
+  language TEXT NOT NULL DEFAULT '',
+  invitation_sent TEXT NOT NULL DEFAULT '',
   phone TEXT NOT NULL DEFAULT '',
   email TEXT,
   invites INTEGER NOT NULL DEFAULT 1,
@@ -70,6 +76,19 @@ CREATE TABLE IF NOT EXISTS settings (
 for (const stmt of [
   `ALTER TABLE guests ADD COLUMN additional_names TEXT`,
   `ALTER TABLE guests ADD COLUMN party_name TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE guests ADD COLUMN name_for_text TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE guests ADD COLUMN adults INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE guests ADD COLUMN kids INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE guests ADD COLUMN language TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE guests ADD COLUMN invitation_sent TEXT NOT NULL DEFAULT ''`,
+  `CREATE TABLE IF NOT EXISTS message_logs (
+    id TEXT PRIMARY KEY,
+    guest_id TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    body TEXT NOT NULL,
+    sent_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_message_logs_guest ON message_logs (guest_id)`,
 ]) {
   try {
     sqlite.exec(stmt);
@@ -182,6 +201,11 @@ export class Storage {
           lastName: last,
           fullName: `${first} ${last}`.trim(),
           partyName: (g.partyName || "").trim(),
+          nameForText: (g.nameForText || "").trim(),
+          adults: Math.max(0, Number((g as any).adults) || 0),
+          kids: Math.max(0, Number((g as any).kids) || 0),
+          language: ((g as any).language || "").trim(),
+          invitationSent: ((g as any).invitationSent || "").trim(),
           phone: (g.phone || "").trim(),
           email: g.email ? g.email.trim() : null,
           invites: Math.max(1, Number(g.invites) || 1),
@@ -209,6 +233,26 @@ export class Storage {
         fullName: `${firstName} ${lastName}`.trim(),
         partyName:
           patch.partyName !== undefined ? (patch.partyName || "").trim() : existing.partyName,
+        nameForText:
+          patch.nameForText !== undefined
+            ? (patch.nameForText || "").trim()
+            : existing.nameForText,
+        adults:
+          (patch as any).adults !== undefined
+            ? Math.max(0, Number((patch as any).adults) || 0)
+            : existing.adults,
+        kids:
+          (patch as any).kids !== undefined
+            ? Math.max(0, Number((patch as any).kids) || 0)
+            : existing.kids,
+        language:
+          (patch as any).language !== undefined
+            ? ((patch as any).language || "").trim()
+            : existing.language,
+        invitationSent:
+          (patch as any).invitationSent !== undefined
+            ? ((patch as any).invitationSent || "").trim()
+            : existing.invitationSent,
         phone: patch.phone !== undefined ? (patch.phone || "").trim() : existing.phone,
         email: patch.email !== undefined ? (patch.email || null) : existing.email,
         invites:
@@ -348,6 +392,47 @@ export class Storage {
           ? 0
           : Math.round((respondedHouseholds / totalHouseholds) * 100),
     };
+  }
+
+  // ---------- message logs ----------
+
+  /** Record that an iMessage draft was opened for this guest.
+   *  We can't confirm delivery — this is intent-to-send. */
+  logMessage(guestId: string, phone: string, body: string): MessageLog {
+    return db
+      .insert(messageLogs)
+      .values({
+        id: randomUUID(),
+        guestId,
+        phone,
+        body,
+        sentAt: Date.now(),
+      })
+      .returning()
+      .get();
+  }
+
+  /** All logs for one guest, newest first. */
+  messagesForGuest(guestId: string): MessageLog[] {
+    return db
+      .select()
+      .from(messageLogs)
+      .where(eq(messageLogs.guestId, guestId))
+      .all()
+      .sort((a, b) => b.sentAt - a.sentAt);
+  }
+
+  /** {guestId: {count, lastSentAt}} for every guest that has logs. */
+  messageCounts(): Record<string, { count: number; lastSentAt: number }> {
+    const rows = db.select().from(messageLogs).all();
+    const out: Record<string, { count: number; lastSentAt: number }> = {};
+    for (const r of rows) {
+      const cur = out[r.guestId] || { count: 0, lastSentAt: 0 };
+      cur.count += 1;
+      if (r.sentAt > cur.lastSentAt) cur.lastSentAt = r.sentAt;
+      out[r.guestId] = cur;
+    }
+    return out;
   }
 }
 

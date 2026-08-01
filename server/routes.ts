@@ -362,7 +362,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.get("/api/admin/guests", requireAdmin, (_req, res) => {
-    res.json({ guests: storage.guestsWithResponses(), totals: storage.totals() });
+    // Attach per-guest message-history summary so the admin UI can show
+    // "3 sent · last 2d ago" chips without a second request per row.
+    const counts = storage.messageCounts();
+    const list = storage.guestsWithResponses().map((g) => ({
+      ...g,
+      messageCount: counts[g.id]?.count ?? 0,
+      lastMessagedAt: counts[g.id]?.lastSentAt ?? null,
+    }));
+    res.json({ guests: list, totals: storage.totals() });
+  });
+
+  /** Log that an iMessage draft was opened for a guest. Called by the admin
+   *  Hit em up flow each time she taps "Send" and the sms: URL is opened. */
+  app.post("/api/admin/messages/log", requireAdmin, (req, res) => {
+    const { guestId, phone, body } = req.body || {};
+    if (!guestId || !phone || !body) {
+      return res.status(400).json({ message: "guestId, phone, body required." });
+    }
+    const guest = storage.getGuest(String(guestId));
+    if (!guest) return res.status(404).json({ message: "Guest not found." });
+    const log = storage.logMessage(String(guestId), String(phone), String(body));
+    res.json({ log });
+  });
+
+  /** Optional: list all logs for one guest (for a future "history" view). */
+  app.get("/api/admin/messages/:guestId", requireAdmin, (req, res) => {
+    res.json({ logs: storage.messagesForGuest(String(req.params.guestId)) });
   });
 
   app.post("/api/admin/guests", requireAdmin, (req, res) => {
@@ -445,6 +471,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       "firstname", "lastname", "phone", "phonenumber", "phonenumbers", "email",
       "invites", "totalinvites", "nameofparty", "partyname", "fullnames",
       "ofadults", "adults", "ofkids", "kids",
+      "namefortext", "textname",
     ];
     const hasHeader =
       header.some((h) => known.includes(h)) ||
@@ -469,10 +496,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           fullNames: idxOf("fullnames", "fullname"),
           adults: idxOf("ofadults", "adults"),
           kids: idxOf("ofkids", "kids"),
+          nameForText: idxOf("namefortext", "textname"),
         }
       : {
           firstName: 0, lastName: 1, phone: 2, email: 3, invites: 4,
-          partyName: -1, fullNames: -1, adults: -1, kids: -1,
+          partyName: -1, fullNames: -1, adults: -1, kids: -1, nameForText: -1,
         };
 
     // Optional additional-household-member columns: additional1_first / additional1_last
@@ -499,24 +527,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const phone = get(cols.phone);
       const email = get(cols.email);
       const partyName = get(cols.partyName);
+      const nameForText = get(cols.nameForText);
       const fullNamesRaw = get(cols.fullNames);
+      // Extra CSV columns we now persist so message-template placeholders work
+      // for every field Jerry's spreadsheet has.
+      const languageRaw = get(idxOf("language"));
+      const invitationSentRaw = get(idxOf("invitationsent"));
       const invitesRaw = get(cols.invites);
       const adultsRaw = get(cols.adults);
       const kidsRaw = get(cols.kids);
 
-      // Use the LARGER of explicit `Total Invites` and (adults+kids). Jerry's
-      // spreadsheet sometimes forgets to include kids in the Total column
-      // (e.g. Concho & Maria has Adults=2 Kids=1 Total=2 — the real seat count
-      // is 3). Also fall back to parsed "Full names" length so rows where
-      // only a Full names list is given still get a sensible count.
+      // Trust the human's explicit `Total Invites` column when it's a positive
+      // number — don't inflate it. This matters because the source spreadsheet
+      // sometimes has stray text in `Full names` that would otherwise parse as
+      // extra people (e.g. "Tio Gordo" row has 4 names but Total=1).
+      // Fall back to Adults+Kids only if Total is blank, and to parsed names
+      // only if neither Total nor Adults+Kids give a count.
       const explicitInvites = parseInt(invitesRaw || "", 10);
       const sumInvites = (parseInt(adultsRaw || "0", 10) || 0) + (parseInt(kidsRaw || "0", 10) || 0);
       const parsedCount = fullNamesRaw ? splitFullNames(fullNamesRaw).length : 0;
-      const explicit = Number.isFinite(explicitInvites) && explicitInvites > 0 ? explicitInvites : 0;
-      const invitesGuess = Math.max(explicit, sumInvites, parsedCount);
+      let invitesGuess = 0;
+      if (Number.isFinite(explicitInvites) && explicitInvites > 0) {
+        invitesGuess = explicitInvites;
+      } else if (sumInvites > 0) {
+        invitesGuess = sumInvites;
+      } else if (parsedCount > 0) {
+        invitesGuess = parsedCount;
+      }
       // Skip zero-invite rows outright — Jerry uses 0/blank invites as a signal
       // that the party isn't invited (Crystal & Mikey, Jackie & BF, Maria/
-      // boyfriend, Christian). Don't inflate them to 1 seat.
+      // boyfriend). Don't inflate them to 1 seat.
       if (invitesGuess <= 0) {
         skipped++;
         continue;
@@ -588,11 +628,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           firstName,
           lastName,
           partyName: partyName || match.partyName,
+          nameForText: nameForText || match.nameForText,
+          adults: parseInt(adultsRaw || "", 10) || match.adults,
+          kids: parseInt(kidsRaw || "", 10) || match.kids,
+          language: languageRaw || match.language,
+          invitationSent: invitationSentRaw || match.invitationSent,
           phone: phone || match.phone,
           email: email || match.email,
           invites,
           additionalNames: additionalNames.length ? additionalNames : match.additionalNames,
-        });
+        } as any);
         if (u) {
           Object.assign(match, u);
           updated++;
@@ -602,11 +647,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           firstName,
           lastName,
           partyName,
+          nameForText,
+          adults: parseInt(adultsRaw || "", 10) || 0,
+          kids: parseInt(kidsRaw || "", 10) || 0,
+          language: languageRaw,
+          invitationSent: invitationSentRaw,
           phone,
           email: email || null,
           invites,
           additionalNames,
-        });
+        } as any);
         existing.push(created);
         added++;
       }
