@@ -102,13 +102,27 @@ for (const stmt of [
   }
 }
 
-/** Convert a raw row into the app-facing Guest (parsed additionalNames). */
+/** Convert a raw row into the app-facing Guest (parsed additionalNames).
+ *  Coerces any nullable text fields to empty string so downstream code and
+ *  Drizzle writes never trip on a leftover NULL from an older schema row. */
 function toGuest(row: GuestRow): Guest;
 function toGuest(row: GuestRow | undefined): Guest | undefined;
 function toGuest(row: GuestRow | undefined): Guest | undefined {
   if (!row) return undefined;
-  const { additionalNames, ...rest } = row;
-  return { ...rest, additionalNames: parseAdditionalNames(additionalNames) };
+  const { additionalNames, ...rest } = row as any;
+  return {
+    ...rest,
+    nameForText: rest.nameForText ?? "",
+    partyName: rest.partyName ?? "",
+    lastName: rest.lastName ?? "",
+    fullName: rest.fullName ?? "",
+    phone: rest.phone ?? "",
+    language: rest.language ?? "",
+    invitationSent: rest.invitationSent ?? "",
+    adults: rest.adults ?? 0,
+    kids: rest.kids ?? 0,
+    additionalNames: parseAdditionalNames(additionalNames),
+  } as Guest;
 }
 
 export class Storage {
