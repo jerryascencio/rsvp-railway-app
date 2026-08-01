@@ -278,6 +278,7 @@ function LoginForm({ status, onDone }: { status: Status; onDone: () => void }) {
 
 type GuestDraft = {
   id?: string;
+  partyName: string;
   firstName: string;
   lastName: string;
   phone: string;
@@ -291,6 +292,7 @@ type GuestDraft = {
 };
 
 const emptyDraft: GuestDraft = {
+  partyName: "",
   firstName: "",
   lastName: "",
   phone: "",
@@ -423,6 +425,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       const hay = [
         g.firstName,
         g.lastName,
+        g.partyName || "",
         alsoInParty(g.additionalNames),
         g.phone,
         g.email || "",
@@ -466,7 +469,9 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       const primaryFullLower = `${g.firstName ?? ""} ${g.lastName ?? ""}`
         .trim()
         .toLowerCase();
+      const partyHit = (g.partyName || "").toLowerCase().includes(needle);
       const primaryHit =
+        partyHit ||
         (g.firstName || "").toLowerCase().includes(needle) ||
         (g.lastName || "").toLowerCase().includes(needle) ||
         primaryFullLower.includes(needle);
@@ -501,8 +506,14 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
 
   async function saveGuest() {
     if (!draft) return;
-    if (!draft.firstName.trim()) {
-      toast({ title: "First name is required.", variant: "destructive" });
+    // Require either a first name OR a party label. Jerry often imports rows
+    // where only the party name is known (e.g. "Marty & Jerry & Mama Luz") —
+    // he'll fill individual names later.
+    if (!draft.firstName.trim() && !draft.partyName.trim()) {
+      toast({
+        title: "Enter a first name or a party name.",
+        variant: "destructive",
+      });
       return;
     }
     const invites = Math.max(1, Number(draft.invites) || 1);
@@ -527,6 +538,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
         await api("PATCH", `/api/admin/guests/${draft.id}`, {
           firstName: draft.firstName,
           lastName: draft.lastName,
+          partyName: draft.partyName,
           phone: draft.phone,
           email: draft.email || null,
           invites,
@@ -541,6 +553,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
         await api("POST", "/api/admin/guests", {
           firstName: draft.firstName,
           lastName: draft.lastName,
+          partyName: draft.partyName,
           phone: draft.phone,
           email: draft.email || null,
           invites,
@@ -914,10 +927,15 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                 className="border-b border-neutral-200 px-4 py-2 text-xs text-neutral-500"
                 data-testid="text-csv-columns-note"
               >
-                CSV columns: <code>firstName, lastName, phone, email, invites</code>. Optional
-                columns: <code>additional1_first</code>, <code>additional1_last</code>,{" "}
-                <code>additional2_first</code>, <code>additional2_last</code>, … up to{" "}
-                <code>additional9</code>.
+                CSV columns (any subset):{" "}
+                <code>Name of Party</code>, <code>Full names</code>,{" "}
+                <code># of Adults</code>, <code># of Kids</code>,{" "}
+                <code>Total Invites</code>, <code>Phone Numbers</code>,{" "}
+                <code>firstName</code>, <code>lastName</code>, <code>email</code>. The importer
+                splits “Full names” on commas, <code>&</code>, and <code>y</code>, and
+                the party label is always searchable. Structured extras{" "}
+                (<code>additional1_first</code>, <code>additional1_last</code>, … up to{" "}
+                <code>additional9</code>) still take precedence when present.
               </div>
 
               {importResult && (
@@ -967,13 +985,30 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                     {displayRows.map((dr) => {
                       const g = dr.guest;
                       const r = g.response;
-                      const primaryName = g.fullName || `${g.firstName} ${g.lastName}`;
+                      // primaryName is what we call this household. Prefer the
+                      // "party name" label when it's set (matches Jerry's
+                      // spreadsheet mental model), then fullName, then
+                      // firstName+lastName. If none is set the row still needs a
+                      // legible label — fall back to "(unnamed party)".
+                      const primaryName =
+                        (g.partyName && g.partyName.trim()) ||
+                        g.fullName ||
+                        `${g.firstName} ${g.lastName}`.trim() ||
+                        "(unnamed party)";
                       // Row headline: the matched person (if any), else the primary contact.
                       const rowName = dr.matchedExtra
                         ? `${dr.matchedExtra.firstName}${
                             dr.matchedExtra.lastName ? " " + dr.matchedExtra.lastName : ""
                           }`.trim()
                         : primaryName;
+                      // When party name and personal name differ, show the personal
+                      // name (if any) underneath the party label on primary rows.
+                      const showPersonalSubline =
+                        !dr.matchedExtra &&
+                        !!(g.partyName && g.partyName.trim()) &&
+                        !!(g.firstName || g.lastName) &&
+                        `${g.firstName} ${g.lastName}`.trim().toLowerCase() !==
+                          g.partyName.trim().toLowerCase();
                       // Highlight the matched substring inside the row's headline name.
                       // Split into [before, match, after]; wrap match in a subtle pill.
                       const needle = filter.trim();
@@ -993,6 +1028,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                       const openEdit = () =>
                         setDraft({
                           id: g.id,
+                          partyName: g.partyName || "",
                           firstName: g.firstName,
                           lastName: g.lastName,
                           phone: g.phone,
@@ -1068,15 +1104,25 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                                 Part of {primaryName}'s party
                               </button>
                             ) : (
-                              g.additionalNames.length > 0 && (
-                                <div
-                                  className="mt-0.5 max-w-[240px] truncate text-xs font-normal text-neutral-400"
-                                  title={`Also in party: ${alsoInParty(g.additionalNames)}`}
-                                  data-testid={`text-also-in-party-${g.id}`}
-                                >
-                                  Also in party: {alsoInParty(g.additionalNames)}
-                                </div>
-                              )
+                              <>
+                                {showPersonalSubline && (
+                                  <div
+                                    className="mt-0.5 max-w-[240px] truncate text-xs font-normal text-neutral-500"
+                                    data-testid={`text-personal-${g.id}`}
+                                  >
+                                    {`${g.firstName} ${g.lastName}`.trim()}
+                                  </div>
+                                )}
+                                {g.additionalNames.length > 0 && (
+                                  <div
+                                    className="mt-0.5 max-w-[240px] truncate text-xs font-normal text-neutral-400"
+                                    title={`Also in party: ${alsoInParty(g.additionalNames)}`}
+                                    data-testid={`text-also-in-party-${g.id}`}
+                                  >
+                                    Also in party: {alsoInParty(g.additionalNames)}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </td>
                           <td className="px-4 py-3 text-neutral-600">
@@ -1240,6 +1286,14 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
           </DialogHeader>
           {draft && (
             <div className="space-y-4">
+              <Field label="Party name (searchable, e.g. “Concho & Maria”)">
+                <Input
+                  value={draft.partyName}
+                  onChange={(e) => setDraft({ ...draft, partyName: e.target.value })}
+                  placeholder="How you refer to this household"
+                  data-testid="input-guest-party-name"
+                />
+              </Field>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="First name">
                   <Input

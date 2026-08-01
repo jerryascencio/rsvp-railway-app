@@ -11,6 +11,68 @@ import type { AdditionalName } from "@shared/schema";
 /** Max number of extra household members supported (party size 10). */
 const MAX_ADDITIONAL = 9;
 
+/**
+ * Parse a free-form "Full names" cell into an ordered list of people.
+ * Handles Jerry's real-world patterns:
+ *   - "," / "&" / " y " separators
+ *   - "x2" / "x 2" suffix meaning "one more of the same"
+ *   - "??" / "???" placeholders — skipped
+ *   - Nickname quotes stripped (e.g. Jose "Conception" Concho → Jose Concho)
+ */
+function splitFullNames(raw: string): AdditionalName[] {
+  if (!raw) return [];
+  // Normalize quotes and separators.
+  let s = raw
+    .replace(/[“”„‟"]/g, '"')
+    .replace(/[‘’]/g, "'")
+    // Nicknames like Jose "Conception" Concho → Jose Concho
+    .replace(/"[^"]*"/g, " ")
+    .replace(/\s+y\s+/gi, ", ")
+    .replace(/\s*&\s*/g, ", ")
+    .replace(/\s+/g, " ")
+    .trim();
+  // Split on commas.
+  const parts = s.split(/\s*,\s*/).map((p) => p.trim()).filter(Boolean);
+  const out: AdditionalName[] = [];
+  for (const p of parts) {
+    // "x2" or "x 2" suffix duplicates the previous person.
+    const dupMatch = p.match(/^(.*?)\s*x\s*2\s*$/i);
+    if (dupMatch) {
+      const namePart = dupMatch[1].trim();
+      if (namePart && namePart !== p) {
+        // Named + dup: "Osiris Rodriguez x 2" → Osiris Rodriguez + Osiris Rodriguez
+        const person = toPerson(namePart);
+        if (person) {
+          out.push(person);
+          out.push({ ...person });
+        }
+      } else if (out.length > 0) {
+        // Bare "x2" → duplicate previous entry.
+        out.push({ ...out[out.length - 1] });
+      }
+      continue;
+    }
+    // Skip "??" placeholders (2+ question marks with maybe nothing else).
+    if (/^\??\?+$/.test(p)) continue;
+    // Handle mixed like "Marco An>???" — strip trailing ??? and >.
+    const cleaned = p.replace(/[>?]+$/g, "").trim();
+    if (!cleaned || /^\??\?+$/.test(cleaned)) continue;
+    const person = toPerson(cleaned);
+    if (person) out.push(person);
+  }
+  return out.slice(0, MAX_ADDITIONAL + 1); // primary + up to MAX extras
+}
+
+/** Split a single "First [Middle] Last" chunk into firstName + lastName. */
+function toPerson(chunk: string): AdditionalName | null {
+  const tokens = chunk.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+  if (tokens.length === 1) return { firstName: tokens[0], lastName: "" };
+  const firstName = tokens[0];
+  const lastName = tokens.slice(1).join(" ");
+  return { firstName, lastName };
+}
+
 /** Coerce an untrusted request body value into a clean AdditionalName[]. */
 function readAdditionalNames(v: unknown): AdditionalName[] | undefined {
   if (v === undefined) return undefined;
@@ -304,12 +366,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/api/admin/guests", requireAdmin, (req, res) => {
-    const { firstName, lastName, phone, email, invites } = req.body || {};
-    if (!firstName || !String(firstName).trim())
-      return res.status(400).json({ message: "First name is required." });
+    const { firstName, lastName, partyName, phone, email, invites } = req.body || {};
+    const first = firstName ? String(firstName).trim() : "";
+    const party = partyName ? String(partyName).trim() : "";
+    // Allow rows with only a party label (e.g. imported "Marty & Jerry & Mama Luz").
+    if (!first && !party)
+      return res.status(400).json({ message: "First name or party name is required." });
     const guest = storage.createGuest({
-      firstName: String(firstName),
+      firstName: first,
       lastName: String(lastName || ""),
+      partyName: party,
       phone: String(phone || ""),
       email: email ? String(email) : null,
       invites: Number(invites) || 1,
@@ -322,6 +388,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const guest = storage.updateGuest(String(req.params.id), {
       firstName: req.body?.firstName,
       lastName: req.body?.lastName,
+      partyName: req.body?.partyName,
       phone: req.body?.phone,
       email: req.body?.email,
       invites: req.body?.invites,
@@ -361,24 +428,40 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const rows = parseCsv(csv);
     if (rows.length === 0) return res.status(400).json({ message: "No rows found." });
 
-    let header = rows[0].map((h) => h.trim().toLowerCase().replace(/[\s_-]/g, ""));
-    const known = ["firstname", "lastname", "phone", "email", "invites"];
+    let header = rows[0].map((h) => h.trim().toLowerCase().replace(/[\s_#\-\.]/g, ""));
+    const known = [
+      "firstname", "lastname", "phone", "phonenumber", "phonenumbers", "email",
+      "invites", "totalinvites", "nameofparty", "partyname", "fullnames",
+      "ofadults", "adults", "ofkids", "kids",
+    ];
     const hasHeader =
       header.some((h) => known.includes(h)) ||
       header.some((h) => /^additional\d(first|last)$/.test(h));
-    const idx = (name: string) => {
-      const i = header.indexOf(name);
-      return i;
+    // Find the first header cell matching any of a list of aliases.
+    const idxOf = (...aliases: string[]) => {
+      for (const a of aliases) {
+        const i = header.indexOf(a);
+        if (i >= 0) return i;
+      }
+      return -1;
     };
+    const idx = (name: string) => idxOf(name);
     const cols = hasHeader
       ? {
           firstName: idx("firstname"),
           lastName: idx("lastname"),
-          phone: idx("phone"),
+          phone: idxOf("phone", "phonenumber", "phonenumbers"),
           email: idx("email"),
-          invites: idx("invites"),
+          invites: idxOf("invites", "totalinvites"),
+          partyName: idxOf("nameofparty", "partyname"),
+          fullNames: idxOf("fullnames", "fullname"),
+          adults: idxOf("ofadults", "adults"),
+          kids: idxOf("ofkids", "kids"),
         }
-      : { firstName: 0, lastName: 1, phone: 2, email: 3, invites: 4 };
+      : {
+          firstName: 0, lastName: 1, phone: 2, email: 3, invites: 4,
+          partyName: -1, fullNames: -1, adults: -1, kids: -1,
+        };
 
     // Optional additional-household-member columns: additional1_first / additional1_last
     // ... up to additional9_*. Header comparison already strips spaces, underscores
@@ -399,27 +482,64 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     for (const r of body) {
       const get = (i: number) => (i >= 0 && i < r.length ? r[i].trim() : "");
-      const firstName = get(cols.firstName);
-      const lastName = get(cols.lastName);
+      let firstName = get(cols.firstName);
+      let lastName = get(cols.lastName);
       const phone = get(cols.phone);
       const email = get(cols.email);
+      const partyName = get(cols.partyName);
+      const fullNamesRaw = get(cols.fullNames);
       const invitesRaw = get(cols.invites);
-      const invites = Math.max(1, parseInt(invitesRaw || "1", 10) || 1);
-      if (!firstName && !lastName) {
-        skipped++;
-        continue;
-      }
+      const adultsRaw = get(cols.adults);
+      const kidsRaw = get(cols.kids);
+
+      // Prefer explicit totalinvites; otherwise sum adults + kids.
+      const explicitInvites = parseInt(invitesRaw || "", 10);
+      const sumInvites = (parseInt(adultsRaw || "0", 10) || 0) + (parseInt(kidsRaw || "0", 10) || 0);
+      const invitesGuess = Number.isFinite(explicitInvites) && explicitInvites > 0
+        ? explicitInvites
+        : sumInvites;
+      const invites = Math.max(1, invitesGuess || 1);
+
+      // Parse free-form "Full names" field into primary + extras. Handles the
+      // patterns Jerry uses: "," / "&" / " y " separators, "x2" suffix meaning
+      // "this person's plus-one", and "??" placeholders for unknown names.
       const additionalNames: AdditionalName[] = [];
+      if (fullNamesRaw && (!firstName || !lastName)) {
+        const people = splitFullNames(fullNamesRaw);
+        if (people.length > 0) {
+          if (!firstName) firstName = people[0].firstName;
+          if (!lastName) lastName = people[0].lastName;
+          for (const p of people.slice(1)) additionalNames.push(p);
+        }
+      }
+
+      // Structured additionalN_first/last columns still take precedence when present.
       for (const pair of additionalCols) {
         const aFirst = get(pair.first);
         const aLast = get(pair.last);
-        // Both halves must be present, otherwise skip this pair silently.
         if (aFirst && aLast) additionalNames.push({ firstName: aFirst, lastName: aLast });
+      }
+
+      // If we still have no name at all but do have a party label, treat the
+      // party label as the guest's display name so Jerry can find them.
+      // firstName stays blank; partyName is stored separately and shown in the UI.
+      if (!firstName && !lastName && !partyName && !phone) {
+        skipped++;
+        continue;
+      }
+      if (!firstName && !lastName && !partyName) {
+        // A row with only a phone number — unusual, but keep it as an anon party.
+        firstName = "(unnamed)";
       }
       const digits = normalizePhone(phone);
       let match = digits
         ? existing.find((g) => normalizePhone(g.phone) && normalizePhone(g.phone) === digits)
         : undefined;
+      if (!match && partyName) {
+        match = existing.find(
+          (g) => (g.partyName || "").toLowerCase() === partyName.toLowerCase(),
+        );
+      }
       if (!match) {
         match = existing.find(
           (g) =>
@@ -431,6 +551,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         const u = storage.updateGuest(match.id, {
           firstName,
           lastName,
+          partyName: partyName || match.partyName,
           phone: phone || match.phone,
           email: email || match.email,
           invites,
@@ -444,6 +565,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         const created = storage.createGuest({
           firstName,
           lastName,
+          partyName,
           phone,
           email: email || null,
           invites,
@@ -459,6 +581,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/admin/guests/export", requireAdmin, (_req, res) => {
     const rows = storage.guestsWithResponses();
     const header = [
+      "partyName",
       "firstName",
       "lastName",
       "phone",
@@ -478,6 +601,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const r = g.response;
       lines.push(
         [
+          g.partyName || "",
           g.firstName,
           g.lastName,
           g.phone,

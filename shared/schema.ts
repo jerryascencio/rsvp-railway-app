@@ -7,6 +7,12 @@ export const guests = sqliteTable("guests", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull().default(""),
   fullName: text("full_name").notNull().default(""),
+  /**
+   * Free-form "Name of party" label, e.g. "Concho & Maria" or
+   * "Marty & Jerry & Mama Luz". Shown on the admin list and used by search
+   * even when firstName/lastName are still blank.
+   */
+  partyName: text("party_name").notNull().default(""),
   phone: text("phone").notNull().default(""),
   email: text("email"),
   invites: integer("invites").notNull().default(1),
@@ -25,7 +31,10 @@ export type AdditionalName = z.infer<typeof additionalNameSchema>;
 /** Insert schema for guests: additionalNames accepted as a real array. */
 export const insertGuestSchema = createInsertSchema(guests)
   .omit({ id: true, fullName: true, additionalNames: true })
-  .extend({ additionalNames: additionalNamesSchema.optional() });
+  .extend({
+    additionalNames: additionalNamesSchema.optional(),
+    partyName: z.string().optional(),
+  });
 export type InsertGuestInput = z.infer<typeof insertGuestSchema>;
 
 /** Parse the raw JSON text column into a typed array. Never throws. */

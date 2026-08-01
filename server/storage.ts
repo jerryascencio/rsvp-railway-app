@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS guests (
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL DEFAULT '',
   full_name TEXT NOT NULL DEFAULT '',
+  party_name TEXT NOT NULL DEFAULT '',
   phone TEXT NOT NULL DEFAULT '',
   email TEXT,
   invites INTEGER NOT NULL DEFAULT 1,
@@ -66,7 +67,10 @@ CREATE TABLE IF NOT EXISTS settings (
 // --- lightweight additive migrations for databases created by older versions ---
 // Railway (and any existing deployment) already has a `guests` table, so the
 // CREATE TABLE IF NOT EXISTS above is a no-op there. Add new columns here.
-for (const stmt of [`ALTER TABLE guests ADD COLUMN additional_names TEXT`]) {
+for (const stmt of [
+  `ALTER TABLE guests ADD COLUMN additional_names TEXT`,
+  `ALTER TABLE guests ADD COLUMN party_name TEXT NOT NULL DEFAULT ''`,
+]) {
   try {
     sqlite.exec(stmt);
   } catch (err: any) {
@@ -177,6 +181,7 @@ export class Storage {
           firstName: first,
           lastName: last,
           fullName: `${first} ${last}`.trim(),
+          partyName: (g.partyName || "").trim(),
           phone: (g.phone || "").trim(),
           email: g.email ? g.email.trim() : null,
           invites: Math.max(1, Number(g.invites) || 1),
@@ -202,6 +207,8 @@ export class Storage {
         firstName,
         lastName,
         fullName: `${firstName} ${lastName}`.trim(),
+        partyName:
+          patch.partyName !== undefined ? (patch.partyName || "").trim() : existing.partyName,
         phone: patch.phone !== undefined ? (patch.phone || "").trim() : existing.phone,
         email: patch.email !== undefined ? (patch.email || null) : existing.email,
         invites:
@@ -233,6 +240,8 @@ export class Storage {
       if (g.lastName && g.lastName.toLowerCase().includes(needle)) return true;
       const full = `${g.firstName} ${g.lastName}`.trim().toLowerCase();
       if (full.includes(needle)) return true;
+      // Party label (e.g. "Concho & Maria", "Tia ki, Miguel, Gabby") is always searchable.
+      if (g.partyName && g.partyName.toLowerCase().includes(needle)) return true;
       // Additional household members: match first, last, or full name.
       // If an additional guest has no last name recorded, fall back to the
       // primary contact's last name (e.g. "Adrian" in the Ascencio household
