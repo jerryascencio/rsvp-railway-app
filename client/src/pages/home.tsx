@@ -309,6 +309,10 @@ export default function Home() {
   // on file for this seat." Server drops these on submit if attending=0.
   const [placeCardNames, setPlaceCardNames] = useState<string[]>([]);
   const [showPlaceCards, setShowPlaceCards] = useState(false);
+  // Guests who already responded are hidden behind a "Looking to change your
+  // reservation?" disclosure so the first thing someone sees is the
+  // households that still need to RSVP.
+  const [showResponded, setShowResponded] = useState(false);
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -328,6 +332,7 @@ export default function Home() {
     setEmail("");
     setPlaceCardNames([]);
     setShowPlaceCards(false);
+    setShowResponded(false);
   }
 
   function selectGuest(m: Match) {
@@ -480,6 +485,7 @@ export default function Home() {
       setMatches(data.matches);
       setSearched(true);
       setGuest(null);
+      setShowResponded(false);
       // Always require explicit confirmation, even for a single match, so guests
       // can catch a wrong-person auto-select before filling out the form.
       // (No auto-select here.)
@@ -785,7 +791,8 @@ export default function Home() {
                 </button>
               )}
             </div>
-          )}
+            );
+          })()}
         </Card>
 
         {/* rsvp form */}

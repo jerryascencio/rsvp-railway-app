@@ -60,6 +60,22 @@ export const translations = {
     noSearchAgain: { en: "No, search again", es: "No, buscar de nuevo" },
     partyOf: { en: "Party of", es: "Grupo de" },
     alreadyResponded: { en: " · already responded", es: " · ya respondió" },
+    allResponded: {
+      en: "Everyone in these results has already responded.",
+      es: "Todos en estos resultados ya han respondido.",
+    },
+    changeReservationPrompt: {
+      en: "Looking to make a change to your reservation?",
+      es: "\u00bfDesea cambiar su reservaci\u00f3n?",
+    },
+    changeReservationCta: {
+      en: "Click here to see who\u2019s already responded.",
+      es: "Toque aqu\u00ed para ver qui\u00e9nes ya respondieron.",
+    },
+    changeReservationHide: {
+      en: "Hide already-responded guests",
+      es: "Ocultar invitados que ya respondieron",
+    },
     genericError: {
       en: "Something went wrong. Please try again.",
       es: "Algo salió mal. Por favor intente de nuevo.",
