@@ -258,6 +258,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const attending: "yes" | "no" = attendees > 0 ? "yes" : "no";
     const language: "en" | "es" = req.body?.language === "es" ? "es" : "en";
 
+    // Optional per-attendee names for place cards. Only accepted when the
+    // guest is attending — no point printing a card for a decline. Trim to
+    // the attending count so a stale value doesn't leak in.
+    const rawPlaceCardNames = Array.isArray(req.body?.placeCardNames)
+      ? (req.body.placeCardNames as unknown[]).map((n) => String(n || "").trim())
+      : null;
+    const placeCardNames =
+      attending === "yes" && rawPlaceCardNames
+        ? rawPlaceCardNames.slice(0, attendees)
+        : null;
+
     const response = storage.upsertResponse({
       guestId: guest.id,
       attending,
@@ -265,6 +276,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       declinedCount,
       guestEmail,
       note: note ? String(note).trim() : null,
+      placeCardNames,
     });
 
     const totals = storage.totals();
@@ -722,6 +734,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       "pendingSeats",
       "guestEmail",
       "note",
+      "placeCardNames",
       "updatedAt",
     ];
     const lines = [header.join(",")];
@@ -742,6 +755,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           r ? 0 : g.invites,
           r?.guestEmail || "",
           r?.note || "",
+          // Place-card names — stored as JSON, exported as "Name 1; Name 2"
+          // so it round-trips cleanly through spreadsheet tools.
+          (() => {
+            const raw = (r as any)?.placeCardNames;
+            if (!raw) return "";
+            try {
+              const parsed = JSON.parse(raw);
+              return Array.isArray(parsed)
+                ? parsed.map((n) => String(n || "").trim()).filter(Boolean).join("; ")
+                : "";
+            } catch {
+              return "";
+            }
+          })(),
           r ? new Date(r.updatedAt).toISOString() : "",
         ]
           .map(csvEscape)

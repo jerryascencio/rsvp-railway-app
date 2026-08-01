@@ -189,6 +189,22 @@ export const translations = {
     },
     hamptonArea: { en: "Panorama City area, California", es: "Zona de Panorama City, California" },
   },
+  placeCards: {
+    heading: {
+      en: "Help us with your place cards (optional)",
+      es: "Ay\u00fadenos con sus tarjetas de mesa (opcional)",
+    },
+    sub: {
+      en: "Confirm or update how each attendee's name should appear on their place card.",
+      es: "Confirme o actualice c\u00f3mo debe aparecer el nombre de cada asistente en su tarjeta de mesa.",
+    },
+    seatLabel: { en: "Seat {n} name", es: "Nombre del asiento {n}" },
+    placeholder: { en: "Guest {n} full name", es: "Invitado {n} nombre completo" },
+    hint: {
+      en: "Leave any name blank to skip; we'll use what we have on file.",
+      es: "Deje cualquier nombre en blanco para omitirlo; usaremos lo que tenemos.",
+    },
+  },
   addNames: {
     heading: {
       en: "Add your party's names (optional)",

@@ -304,6 +304,11 @@ export default function Home() {
   // them in here. Length = invites - 1 (seats besides the primary). Each entry
   // is trimmed on submit; blanks are ignored.
   const [typedExtras, setTypedExtras] = useState<string[]>([]);
+  // Optional per-attendee names for place cards. Length matches attending
+  // count. Empty strings are allowed and mean "use whatever the host has
+  // on file for this seat." Server drops these on submit if attending=0.
+  const [placeCardNames, setPlaceCardNames] = useState<string[]>([]);
+  const [showPlaceCards, setShowPlaceCards] = useState(false);
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -321,6 +326,8 @@ export default function Home() {
     setError(null);
     setNote("");
     setEmail("");
+    setPlaceCardNames([]);
+    setShowPlaceCards(false);
   }
 
   function selectGuest(m: Match) {
@@ -401,6 +408,42 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [typedExtras, guest]);
 
+  // Keep placeCardNames array sized to `attending`. Auto-populate defaults
+  // from whatever we know about the household — stored names first, then
+  // typed extras, then guest.fullName for the primary. The guest can edit
+  // any entry (or leave it blank) before submit.
+  useEffect(() => {
+    if (!guest) {
+      setPlaceCardNames([]);
+      return;
+    }
+    const primaryLast = (guest.lastName || "").trim();
+    const storedNames = (guest.additionalNames || [])
+      .filter((n) => n.firstName || n.lastName)
+      .map((n) => {
+        const last = (n.lastName && n.lastName.trim()) || primaryLast;
+        return [n.firstName, last].filter(Boolean).join(" ");
+      });
+    const typedNames = typedExtras.map((s) => s.trim()).filter(Boolean);
+    const extras = storedNames.length > 0 ? storedNames : typedNames;
+    // Full possible seat list, primary + extras. Slice to attending count.
+    const seatDefaults = [guest.fullName, ...extras].slice(0, attending);
+    // Pad with blanks if attending is larger than what we know.
+    while (seatDefaults.length < attending) seatDefaults.push("");
+    // Preserve any edits the guest already made — only overwrite entries
+    // that are still empty. That way clicking around the person checklist
+    // doesn't clobber a nickname they just typed.
+    setPlaceCardNames((prev) => {
+      const next: string[] = [];
+      for (let i = 0; i < attending; i++) {
+        const existing = (prev[i] || "").trim();
+        next.push(existing.length > 0 ? prev[i] : seatDefaults[i] || "");
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attending, guest, typedExtras]);
+
   // Update one person in the checklist, then recompute attending/declined totals.
   function setPersonAttendance(key: string, status: "yes" | "no") {
     if (!guest) return;
@@ -478,6 +521,11 @@ export default function Home() {
                 };
               })
           : [];
+      // Trim place-card names to the attending count and send them. Server
+      // ignores this list when attending=0.
+      const placeCardPayload = placeCardNames
+        .slice(0, attending)
+        .map((n) => (n || "").trim());
       const res = await api<{ email: { guestSent: boolean } }>("POST", "/api/rsvp", {
         guestId: guest.id,
         attending: attending > 0 ? "yes" : "no",
@@ -487,6 +535,7 @@ export default function Home() {
         note: note.trim() || null,
         language,
         additionalNames: typedNamesPayload.length ? typedNamesPayload : undefined,
+        placeCardNames: attending > 0 ? placeCardPayload : undefined,
       });
       setSubmitted({
         firstName: guest.firstName,
@@ -943,6 +992,68 @@ export default function Home() {
                   </>
                 );
               })()}
+
+              {/* Optional place-card names. Only shown when the guest is
+                * attending at least one seat. Collapsed by default so we
+                * don't front-load the form with more fields. */}
+              {attending > 0 && (
+                <div className="rounded-lg border border-dashed border-[hsl(28_31%_65%)] bg-[hsl(28_60%_98%)] p-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowPlaceCards((v) => !v)}
+                    className="flex w-full items-center justify-between text-left"
+                    data-testid="button-toggle-place-cards"
+                    aria-expanded={showPlaceCards}
+                  >
+                    <span>
+                      <span className="font-display block text-base text-[hsl(346_33%_46%)]">
+                        {t("placeCards.heading")}
+                      </span>
+                      <span className="mt-1 block text-sm text-[hsl(19_14%_45%)]">
+                        {t("placeCards.sub")}
+                      </span>
+                    </span>
+                    <span
+                      className={`ml-3 shrink-0 text-[hsl(346_37%_56%)] transition-transform ${
+                        showPlaceCards ? "rotate-90" : ""
+                      }`}
+                      aria-hidden="true"
+                    >
+                      ›
+                    </span>
+                  </button>
+                  {showPlaceCards && (
+                    <div className="mt-3 space-y-2">
+                      {Array.from({ length: attending }).map((_, i) => (
+                        <div key={i}>
+                          <label
+                            htmlFor={`place-card-${i}`}
+                            className="sr-only"
+                          >
+                            {t("placeCards.seatLabel", { n: i + 1 })}
+                          </label>
+                          <input
+                            id={`place-card-${i}`}
+                            type="text"
+                            value={placeCardNames[i] || ""}
+                            onChange={(e) => {
+                              const next = [...placeCardNames];
+                              next[i] = e.target.value;
+                              setPlaceCardNames(next);
+                            }}
+                            placeholder={t("placeCards.placeholder", { n: i + 1 })}
+                            className="w-full rounded-md border border-[hsl(28_31%_65%)] bg-white px-3 py-2 text-sm text-[hsl(19_17%_28%)] outline-none focus:border-[hsl(346_37%_56%)]"
+                            data-testid={`input-place-card-${i}`}
+                          />
+                        </div>
+                      ))}
+                      <p className="pt-1 text-xs italic text-[hsl(19_14%_50%)]">
+                        {t("placeCards.hint")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <label

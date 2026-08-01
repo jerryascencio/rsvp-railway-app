@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS responses (
   declined_count INTEGER NOT NULL DEFAULT 0,
   guest_email TEXT,
   note TEXT,
+  place_card_names TEXT,
   updated_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS admins (
@@ -83,6 +84,7 @@ for (const stmt of [
   `ALTER TABLE guests ADD COLUMN language TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE guests ADD COLUMN invitation_sent TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE guests ADD COLUMN updated_at INTEGER`,
+  `ALTER TABLE responses ADD COLUMN place_card_names TEXT`,
   `CREATE TABLE IF NOT EXISTS message_logs (
     id TEXT PRIMARY KEY,
     guest_id TEXT NOT NULL,
@@ -125,6 +127,28 @@ function toGuest(row: GuestRow | undefined): Guest | undefined {
     kids: rest.kids ?? 0,
     additionalNames: parseAdditionalNames(additionalNames),
   } as Guest;
+}
+
+/** Convert a stored response row — keeps placeCardNames as the JSON string
+ *  (matching the schema type) but the same helper returns a parsed list
+ *  when a caller needs it. Since RsvpResponse.placeCardNames is typed as
+ *  string|null, we leave the stored JSON in place. Callers that want the
+ *  parsed list use `parsePlaceCardNames` below. */
+function toResponse(row: RsvpResponse): RsvpResponse {
+  return row;
+}
+
+/** Parse the JSON-encoded place-card names list. Returns [] when unset or
+ *  the JSON is malformed — an empty list means "guest skipped this." */
+export function parsePlaceCardNames(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map((n) => String(n || ""));
+    return [];
+  } catch {
+    return [];
+  }
 }
 
 export class Storage {
@@ -322,11 +346,12 @@ export class Storage {
 
   // ---------- responses ----------
   allResponses(): RsvpResponse[] {
-    return db.select().from(responses).all();
+    return db.select().from(responses).all().map(toResponse);
   }
 
   getResponseByGuest(guestId: string): RsvpResponse | undefined {
-    return db.select().from(responses).where(eq(responses.guestId, guestId)).get();
+    const row = db.select().from(responses).where(eq(responses.guestId, guestId)).get();
+    return row ? toResponse(row) : undefined;
   }
 
   upsertResponse(input: {
@@ -336,8 +361,15 @@ export class Storage {
     declinedCount: number;
     guestEmail?: string | null;
     note?: string | null;
+    placeCardNames?: string[] | null;
   }): RsvpResponse {
     const existing = this.getResponseByGuest(input.guestId);
+    // Trim and drop empty entries. If every name is blank, store null so the
+    // admin can still see "guest skipped the place-card section."
+    const cleanedNames = input.placeCardNames
+      ? input.placeCardNames.map((n) => (n || "").trim())
+      : null;
+    const anyNonEmpty = cleanedNames?.some((n) => n.length > 0) ?? false;
     const values = {
       guestId: input.guestId,
       attending: input.attending,
@@ -345,6 +377,8 @@ export class Storage {
       declinedCount: input.declinedCount,
       guestEmail: input.guestEmail || null,
       note: input.note || null,
+      placeCardNames:
+        cleanedNames && anyNonEmpty ? JSON.stringify(cleanedNames) : null,
       updatedAt: Date.now(),
     };
     if (existing) {

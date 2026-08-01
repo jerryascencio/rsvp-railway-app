@@ -92,6 +92,12 @@ export const responses = sqliteTable("responses", {
   declinedCount: integer("declined_count").notNull().default(0),
   guestEmail: text("guest_email"),
   note: text("note"),
+  /** Optional per-attendee names captured on the public RSVP form so we
+   *  can print accurate place cards. Stored separately from the household's
+   *  primary + additional names — those stay untouched. JSON array of
+   *  strings, length matches `attendees`. Nullable when the guest skipped
+   *  the optional section. */
+  placeCardNames: text("place_card_names"),
   updatedAt: integer("updated_at").notNull(),
 });
 

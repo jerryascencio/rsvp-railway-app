@@ -1614,6 +1614,21 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                     {displayRows.map((dr) => {
                       const g = dr.guest;
                       const r = g.response;
+                      // Parse the JSON-encoded place-card names captured on the
+                      // public RSVP form. Empty array when the guest skipped
+                      // that section.
+                      const placeCardNames: string[] = (() => {
+                        const raw = (r as any)?.placeCardNames;
+                        if (!raw) return [];
+                        try {
+                          const parsed = JSON.parse(raw);
+                          return Array.isArray(parsed)
+                            ? parsed.map((n) => String(n || ""))
+                            : [];
+                        } catch {
+                          return [];
+                        }
+                      })();
                       // primaryName is what we call this household. Prefer the
                       // "party name" label when it's set (matches Jerry's
                       // spreadsheet mental model), then fullName, then
@@ -1800,13 +1815,26 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                               </span>
                             )}
                           </td>
-                          <td className="max-w-[220px] px-4 py-3 text-neutral-600">
+                          <td className="max-w-[240px] px-4 py-3 text-neutral-600">
                             {r?.note ? (
                               <span title={r.note} className="line-clamp-2">
                                 {r.note}
                               </span>
-                            ) : (
+                            ) : !placeCardNames.length ? (
                               <span className="text-neutral-400">—</span>
+                            ) : null}
+                            {placeCardNames.length > 0 && (
+                              <div
+                                className={r?.note ? "mt-1" : ""}
+                                title={`Place cards: ${placeCardNames.join(", ")}`}
+                              >
+                                <span className="text-[10px] uppercase tracking-wide text-neutral-500">
+                                  Place cards
+                                </span>
+                                <div className="line-clamp-2 text-xs text-neutral-700">
+                                  {placeCardNames.map((n) => n || "—").join(", ")}
+                                </div>
+                              </div>
                             )}
                           </td>
                           <td
