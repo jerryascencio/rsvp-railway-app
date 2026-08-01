@@ -492,12 +492,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const adultsRaw = get(cols.adults);
       const kidsRaw = get(cols.kids);
 
-      // Prefer explicit totalinvites; otherwise sum adults + kids.
+      // Use the LARGER of explicit `Total Invites` and (adults+kids). Jerry's
+      // spreadsheet sometimes forgets to include kids in the Total column
+      // (e.g. Concho & Maria has Adults=2 Kids=1 Total=2 — the real seat count
+      // is 3). Also fall back to parsed "Full names" length so rows where
+      // only a Full names list is given still get a sensible count.
       const explicitInvites = parseInt(invitesRaw || "", 10);
       const sumInvites = (parseInt(adultsRaw || "0", 10) || 0) + (parseInt(kidsRaw || "0", 10) || 0);
-      const invitesGuess = Number.isFinite(explicitInvites) && explicitInvites > 0
-        ? explicitInvites
-        : sumInvites;
+      const parsedCount = fullNamesRaw ? splitFullNames(fullNamesRaw).length : 0;
+      const explicit = Number.isFinite(explicitInvites) && explicitInvites > 0 ? explicitInvites : 0;
+      const invitesGuess = Math.max(explicit, sumInvites, parsedCount);
       const invites = Math.max(1, invitesGuess || 1);
 
       // Parse free-form "Full names" field into primary + extras. Handles the
@@ -523,7 +527,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       // If we still have no name at all but do have a party label, treat the
       // party label as the guest's display name so Jerry can find them.
       // firstName stays blank; partyName is stored separately and shown in the UI.
+      // Only truly-empty rows (no party label, no name, no phone) are skipped.
       if (!firstName && !lastName && !partyName && !phone) {
+        skipped++;
+        continue;
+      }
+      // A row like "TOTALS,,262,16,278" would leak in as a party — guard against
+      // the literal totals summary row.
+      if (partyName && /^totals?$/i.test(partyName)) {
         skipped++;
         continue;
       }
