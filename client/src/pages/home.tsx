@@ -30,6 +30,9 @@ type Match = {
   firstName: string;
   lastName: string;
   fullName: string;
+  // Optional household label ("Marty & Jerry & Mama Luz"). Preferred over
+  // the primary contact's name when surfacing a matched extra member.
+  partyName?: string;
   invites: number;
   email: string | null;
   additionalNames?: { firstName: string; lastName: string }[];
@@ -736,10 +739,16 @@ export default function Home() {
                     matchedExtraLast ? " " + matchedExtraLast : ""
                   }`.trim()
                 : m.fullName;
+              // For a matched extra, prefer the household's party label
+              // (e.g. "Marty & Jerry & Mama Luz") when it's set — that's the
+              // name the household actually recognizes. Fall back to the
+              // primary's full name only when there's no party label.
+              const householdLabelForExtra =
+                (m.partyName && m.partyName.trim()) || m.fullName;
               const subLine = matchedExtra
                 ? t("partyMember.template", {
                     name: matchedExtra.firstName || headline,
-                    primary: m.fullName,
+                    primary: householdLabelForExtra,
                   })
                 : householdLabel(m, t, { includePartyOf: false });
               return (

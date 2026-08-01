@@ -201,6 +201,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         firstName: g.firstName,
         lastName: g.lastName,
         fullName: g.fullName || `${g.firstName} ${g.lastName}`.trim(),
+        // The household's optional party label (e.g. "Marty & Jerry & Mama Luz").
+        // Public search results use this when surfacing extra members so the
+        // subtitle reads "part of the Marty & Jerry & Mama Luz party" instead
+        // of naming just the primary contact.
+        partyName: g.partyName || "",
         invites: g.invites,
         email: g.email,
         additionalNames: g.additionalNames,
