@@ -1058,6 +1058,10 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       }
       setDraft(null);
       await load();
+      // Snap the table sort to Last activity ↓ so the row Jerry just edited
+      // visibly jumps to the top — confirms the save landed.
+      setSortBy("lastActivity");
+      setSortDir("desc");
       toast({ title: "Saved" });
     } catch (err: any) {
       toast({ title: "Save failed", description: err?.message, variant: "destructive" });
