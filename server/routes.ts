@@ -422,6 +422,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.json({ ok: true });
   });
 
+  // Nuke every guest + response. Used by "Delete all guests" in the admin UI
+  // when Jerry needs to re-import a canonical CSV from scratch. Body must
+  // include { confirm: "DELETE_ALL_GUESTS" } so accidental calls fail loud.
+  app.post("/api/admin/guests/reset", requireAdmin, (req, res) => {
+    if (req.body?.confirm !== "DELETE_ALL_GUESTS") {
+      return res.status(400).json({ message: "Missing confirm token." });
+    }
+    const all = storage.allGuests();
+    for (const g of all) storage.deleteGuest(g.id);
+    res.json({ ok: true, deleted: all.length });
+  });
+
   app.post("/api/admin/guests/import", requireAdmin, (req, res) => {
     const csv = String(req.body?.csv || "");
     if (!csv.trim()) return res.status(400).json({ message: "CSV content is empty." });
@@ -546,16 +558,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       let match = digits
         ? existing.find((g) => normalizePhone(g.phone) && normalizePhone(g.phone) === digits)
         : undefined;
-      if (!match && partyName) {
-        match = existing.find(
-          (g) => (g.partyName || "").toLowerCase() === partyName.toLowerCase(),
-        );
-      }
-      if (!match) {
+      if (!match && partyName.trim()) {
         match = existing.find(
           (g) =>
-            g.firstName.toLowerCase() === firstName.toLowerCase() &&
-            (g.lastName || "").toLowerCase() === lastName.toLowerCase(),
+            (g.partyName || "").trim().toLowerCase() ===
+            partyName.trim().toLowerCase(),
+        );
+      }
+      // Only match on firstName+lastName when BOTH are non-empty. Otherwise every
+      // row with a blank Full names cell would collide with every other blank-name
+      // row in the DB (they'd all "match" each other with firstName=""), which
+      // caused the first re-import to collapse 118 rows into 44 households.
+      if (!match && firstName.trim() && lastName.trim()) {
+        match = existing.find(
+          (g) =>
+            g.firstName.trim().toLowerCase() === firstName.trim().toLowerCase() &&
+            (g.lastName || "").trim().toLowerCase() === lastName.trim().toLowerCase(),
         );
       }
       if (match) {

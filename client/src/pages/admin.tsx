@@ -921,6 +921,31 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                   <Download className="mr-1.5 h-3.5 w-3.5" />
                   Download CSV
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-red-300 text-red-700 hover:bg-red-50"
+                  onClick={async () => {
+                    const confirm1 = window.prompt(
+                      "This will delete ALL guests and RSVPs. Type DELETE to confirm.",
+                    );
+                    if (confirm1 !== "DELETE") return;
+                    try {
+                      const r = await api<{ deleted: number }>(
+                        "POST",
+                        "/api/admin/guests/reset",
+                        { confirm: "DELETE_ALL_GUESTS" },
+                      );
+                      toast({ title: `Deleted ${r.deleted} guests.` });
+                      await load();
+                    } catch (err: any) {
+                      toast({ title: err.message || "Reset failed", variant: "destructive" });
+                    }
+                  }}
+                  data-testid="button-reset-guests"
+                >
+                  Delete all
+                </Button>
               </div>
 
               <div
