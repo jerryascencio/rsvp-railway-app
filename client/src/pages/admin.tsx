@@ -22,6 +22,9 @@ import {
   Send,
   SkipForward,
   Check,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import type { AdditionalName, GuestWithResponse, Totals } from "@shared/schema";
 import { api, apiUrl, setAuthToken, getAuthToken } from "@/lib/api";
@@ -696,6 +699,65 @@ function HitEmUpDialog({
   );
 }
 
+/** Format a Unix ms timestamp as a friendly relative label ("2h ago", "yesterday",
+ *  "Jul 28"). Returns "—" when there's no timestamp yet. */
+function formatRelative(ts: number | null | undefined): string {
+  if (!ts) return "—";
+  const now = Date.now();
+  const diffSec = Math.round((now - ts) / 1000);
+  if (diffSec < 60) return "just now";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86_400) return `${Math.floor(diffSec / 3600)}h ago`;
+  if (diffSec < 172_800) return "yesterday";
+  if (diffSec < 604_800) return `${Math.floor(diffSec / 86_400)}d ago`;
+  const d = new Date(ts);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
+}
+
+/** Extract the comparable value for a given sort column. Numbers stay numeric
+ *  so 10 sorts after 2. Text uses locale-aware comparison in the caller. */
+function valueForSort(
+  g: GuestWithResponse,
+  key:
+    | "name"
+    | "contact"
+    | "partySize"
+    | "attending"
+    | "declined"
+    | "pending"
+    | "note"
+    | "lastActivity",
+): string | number | null {
+  const r = g.response;
+  switch (key) {
+    case "name":
+      return `${g.lastName || ""} ${g.firstName || ""} ${g.partyName || ""}`
+        .trim()
+        .toLowerCase();
+    case "contact":
+      // Sort by digits so (818) 336-8828 and 8183368828 sort together.
+      return (g.phone || "").replace(/\D/g, "") || (g.email || "").toLowerCase() || null;
+    case "partySize":
+      return g.invites;
+    case "attending":
+      return r ? r.attendees : null;
+    case "declined":
+      return r ? r.declinedCount : null;
+    case "pending":
+      // Unresponded households have `invites` pending seats; responded = 0.
+      return r ? 0 : g.invites;
+    case "note":
+      return (r?.note || "").toLowerCase() || null;
+    case "lastActivity":
+      return g.lastActivityAt ?? null;
+  }
+}
+
 function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void }) {
   const { toast } = useToast();
   const [guests, setGuests] = useState<GuestWithResponse[]>([]);
@@ -706,6 +768,30 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
   const [statusFilter, setStatusFilter] = useState<"all" | "attending" | "declined" | "pending">(
     "all",
   );
+  // Column sort. `sortBy=null` means the default sort (name).
+  // Clicking a header cycles: null → asc → desc → null.
+  type SortKey =
+    | "name"
+    | "contact"
+    | "partySize"
+    | "attending"
+    | "declined"
+    | "pending"
+    | "note"
+    | "lastActivity";
+  const [sortBy, setSortBy] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (key: SortKey) => {
+    if (sortBy !== key) {
+      setSortBy(key);
+      setSortDir("asc");
+    } else if (sortDir === "asc") {
+      setSortDir("desc");
+    } else {
+      setSortBy(null);
+      setSortDir("asc");
+    }
+  };
   const [draft, setDraft] = useState<GuestDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<GuestWithResponse | null>(null);
@@ -781,6 +867,27 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
     });
   }, [guests, filter, statusFilter]);
 
+  // Apply the active column sort. When sortBy is null, fall back to the
+  // storage-layer default (roughly last name, then first name).
+  const sortedRows = useMemo(() => {
+    if (!sortBy) return rows;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const compare = (a: GuestWithResponse, b: GuestWithResponse): number => {
+      const va = valueForSort(a, sortBy);
+      const vb = valueForSort(b, sortBy);
+      // Nullish values always sort to the bottom regardless of direction
+      // — "no activity yet" or "no note" shouldn't jump to the top.
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (typeof va === "number" && typeof vb === "number") {
+        return (va - vb) * dir;
+      }
+      return String(va).localeCompare(String(vb), undefined, { sensitivity: "base" }) * dir;
+    };
+    return [...rows].sort(compare);
+  }, [rows, sortBy, sortDir]);
+
   // When the admin is filtering by a name, expand household rows into one row
   // per matched person. Each display row keeps a reference back to its
   // household guest so Party Size / Attending / Declined / Note / Actions all
@@ -795,7 +902,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
     const needle = filter.trim().toLowerCase();
     // No name filter → one row per household, unchanged behavior.
     if (!needle) {
-      return rows.map((g) => ({ key: g.id, guest: g, matchedExtra: null }));
+      return sortedRows.map((g) => ({ key: g.id, guest: g, matchedExtra: null }));
     }
 
     // Numeric / phone / email searches: don't split into per-person rows.
@@ -803,12 +910,12 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
     const isPhoneSearch = digits.length >= 3;
     const isEmailSearch = needle.includes("@");
     if (isPhoneSearch || isEmailSearch) {
-      return rows.map((g) => ({ key: g.id, guest: g, matchedExtra: null }));
+      return sortedRows.map((g) => ({ key: g.id, guest: g, matchedExtra: null }));
     }
 
     // Name filter → emit one row per matched person in the household.
     const out: DisplayRow[] = [];
-    for (const g of rows) {
+    for (const g of sortedRows) {
       const primaryLast = (g.lastName || "").trim();
       const primaryFullLower = `${g.firstName ?? ""} ${g.lastName ?? ""}`
         .trim()
@@ -846,7 +953,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       }
     }
     return out;
-  }, [rows, filter]);
+  }, [sortedRows, filter]);
 
   async function saveGuest() {
     if (!draft) return;
@@ -1345,14 +1452,51 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                 <table className="w-full text-sm">
                   <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
                     <tr>
-                      <th className="px-4 py-3 font-medium">Name</th>
-                      <th className="px-4 py-3 font-medium">Contact</th>
-                      <th className="px-4 py-3 font-medium">Party size</th>
-                      <th className="px-4 py-3 font-medium">Attending</th>
-                      <th className="px-4 py-3 font-medium">Declined</th>
-                      <th className="px-4 py-3 font-medium">Pending seats</th>
-                      <th className="px-4 py-3 font-medium">Note</th>
-                      <th className="px-4 py-3 font-medium">Updated</th>
+                      {(
+                        [
+                          ["name", "Name"],
+                          ["contact", "Contact"],
+                          ["partySize", "Party size"],
+                          ["attending", "Attending"],
+                          ["declined", "Declined"],
+                          ["pending", "Pending seats"],
+                          ["note", "Note"],
+                          ["lastActivity", "Last activity"],
+                        ] as const
+                      ).map(([key, label]) => {
+                        const active = sortBy === key;
+                        const Icon = active
+                          ? sortDir === "asc"
+                            ? ArrowUp
+                            : ArrowDown
+                          : ArrowUpDown;
+                        return (
+                          <th key={key} className="px-4 py-3 font-medium">
+                            <button
+                              type="button"
+                              onClick={() => toggleSort(key)}
+                              className={`inline-flex items-center gap-1 rounded transition hover:text-neutral-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(346_45%_55%)] ${
+                                active ? "text-neutral-900" : ""
+                              }`}
+                              title={
+                                active
+                                  ? sortDir === "asc"
+                                    ? `Sorted ${label.toLowerCase()} A→Z — click for Z→A`
+                                    : `Sorted ${label.toLowerCase()} Z→A — click to clear`
+                                  : `Sort by ${label.toLowerCase()}`
+                              }
+                              data-testid={`sort-${key}`}
+                            >
+                              <span>{label}</span>
+                              <Icon
+                                className={`h-3 w-3 ${
+                                  active ? "text-[hsl(346_45%_45%)]" : "text-neutral-400"
+                                }`}
+                              />
+                            </button>
+                          </th>
+                        );
+                      })}
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
@@ -1574,8 +1718,15 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                               <span className="text-neutral-400">—</span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-xs text-neutral-500">
-                            {r ? new Date(r.updatedAt).toLocaleString() : "—"}
+                          <td
+                            className="whitespace-nowrap px-4 py-3 text-xs text-neutral-500"
+                            title={
+                              g.lastActivityAt
+                                ? new Date(g.lastActivityAt).toLocaleString()
+                                : "No activity yet"
+                            }
+                          >
+                            {formatRelative(g.lastActivityAt ?? null)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-right">
                             <Button

@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS guests (
   phone TEXT NOT NULL DEFAULT '',
   email TEXT,
   invites INTEGER NOT NULL DEFAULT 1,
-  additional_names TEXT
+  additional_names TEXT,
+  updated_at INTEGER
 );
 CREATE TABLE IF NOT EXISTS responses (
   id TEXT PRIMARY KEY,
@@ -81,6 +82,7 @@ for (const stmt of [
   `ALTER TABLE guests ADD COLUMN kids INTEGER NOT NULL DEFAULT 0`,
   `ALTER TABLE guests ADD COLUMN language TEXT NOT NULL DEFAULT ''`,
   `ALTER TABLE guests ADD COLUMN invitation_sent TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE guests ADD COLUMN updated_at INTEGER`,
   `CREATE TABLE IF NOT EXISTS message_logs (
     id TEXT PRIMARY KEY,
     guest_id TEXT NOT NULL,
@@ -224,6 +226,7 @@ export class Storage {
           email: g.email ? g.email.trim() : null,
           invites: Math.max(1, Number(g.invites) || 1),
           additionalNames: serializeAdditionalNames(g.additionalNames),
+          updatedAt: Date.now(),
         })
         .returning()
         .get(),
@@ -274,6 +277,7 @@ export class Storage {
             ? Math.max(1, Number(patch.invites) || 1)
             : existing.invites,
         additionalNames,
+        updatedAt: Date.now(),
       })
       .where(eq(guests.id, id))
       .returning()

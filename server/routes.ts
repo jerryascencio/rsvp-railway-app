@@ -365,11 +365,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // Attach per-guest message-history summary so the admin UI can show
     // "3 sent · last 2d ago" chips without a second request per row.
     const counts = storage.messageCounts();
-    const list = storage.guestsWithResponses().map((g) => ({
-      ...g,
-      messageCount: counts[g.id]?.count ?? 0,
-      lastMessagedAt: counts[g.id]?.lastSentAt ?? null,
-    }));
+    const list = storage.guestsWithResponses().map((g) => {
+      const guestUpdatedAt = (g as any).updatedAt ?? null;
+      const responseUpdatedAt = g.response?.updatedAt ?? null;
+      const lastMessagedAt = counts[g.id]?.lastSentAt ?? null;
+      // Roll the three activity signals into one "last activity" timestamp so
+      // the admin can sort or scan the column without doing the math.
+      const lastActivityAt = [guestUpdatedAt, responseUpdatedAt, lastMessagedAt]
+        .filter((v): v is number => typeof v === "number")
+        .reduce<number | null>((max, v) => (max === null || v > max ? v : max), null);
+      return {
+        ...g,
+        messageCount: counts[g.id]?.count ?? 0,
+        lastMessagedAt,
+        lastActivityAt,
+      };
+    });
     res.json({ guests: list, totals: storage.totals() });
   });
 

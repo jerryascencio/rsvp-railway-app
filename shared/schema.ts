@@ -28,6 +28,9 @@ export const guests = sqliteTable("guests", {
   invitationSent: text("invitation_sent").notNull().default(""),
   /** JSON-encoded Array<{firstName,lastName}>. SQLite has no array type. */
   additionalNames: text("additional_names"),
+  /** Unix ms of last write to this row via storage.createGuest/updateGuest.
+   *  Nullable so pre-existing rows don't need backfill. */
+  updatedAt: integer("updated_at"),
 });
 
 /** One extra household member. */
@@ -140,6 +143,9 @@ export type GuestWithResponse = Guest & {
   messageCount?: number;
   /** Unix ms of last message we opened for this guest, or null. */
   lastMessagedAt?: number | null;
+  /** Unix ms of the most recent activity on this party — max of guest edit,
+   *  response update, or last message sent. Null when no activity yet. */
+  lastActivityAt?: number | null;
 };
 
 export type Totals = {
