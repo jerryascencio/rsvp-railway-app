@@ -283,6 +283,7 @@ function LoginForm({ status, onDone }: { status: Status; onDone: () => void }) {
 type GuestDraft = {
   id?: string;
   partyName: string;
+  nameForText: string;
   firstName: string;
   lastName: string;
   phone: string;
@@ -297,6 +298,7 @@ type GuestDraft = {
 
 const emptyDraft: GuestDraft = {
   partyName: "",
+  nameForText: "",
   firstName: "",
   lastName: "",
   phone: "",
@@ -876,11 +878,16 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       .filter((n) => n.firstName || n.lastName);
     setSaving(true);
     try {
+      // Default the SMS greeting to First name when Jerry didn't customize it.
+      // The Hit em up flow will fall back to partyName/firstName at render
+      // time too — storing the value makes the CSV export round-trip cleanly.
+      const nameForText = (draft.nameForText || "").trim() || draft.firstName.trim();
       if (draft.id) {
         await api("PATCH", `/api/admin/guests/${draft.id}`, {
           firstName: draft.firstName,
           lastName: draft.lastName,
           partyName: draft.partyName,
+          nameForText,
           phone: draft.phone,
           email: draft.email || null,
           invites,
@@ -896,6 +903,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
           firstName: draft.firstName,
           lastName: draft.lastName,
           partyName: draft.partyName,
+          nameForText,
           phone: draft.phone,
           email: draft.email || null,
           invites,
@@ -1415,6 +1423,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                         setDraft({
                           id: g.id,
                           partyName: g.partyName || "",
+                          nameForText: g.nameForText || "",
                           firstName: g.firstName,
                           lastName: g.lastName,
                           phone: g.phone,
@@ -1691,6 +1700,21 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                   onChange={(e) => setDraft({ ...draft, partyName: e.target.value })}
                   placeholder="How you refer to this household"
                   data-testid="input-guest-party-name"
+                />
+              </Field>
+              <Field
+                label="Name for text (used in Hit em up messages)"
+                hint={
+                  draft.nameForText.trim()
+                    ? undefined
+                    : `Blank → defaults to First name (“${draft.firstName || "—"}”)`
+                }
+              >
+                <Input
+                  value={draft.nameForText}
+                  onChange={(e) => setDraft({ ...draft, nameForText: e.target.value })}
+                  placeholder={draft.firstName || "e.g. Concho & Maria, or just Alfredo"}
+                  data-testid="input-guest-name-for-text"
                 />
               </Field>
               <div className="grid gap-4 sm:grid-cols-2">

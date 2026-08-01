@@ -398,15 +398,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // Allow rows with only a party label (e.g. imported "Marty & Jerry & Mama Luz").
     if (!first && !party)
       return res.status(400).json({ message: "First name or party name is required." });
+    // "Name for text" defaults to first name so the Hit em up flow always has
+    // a greeting even if Jerry didn't fill it in explicitly.
+    const nameForText = String(req.body?.nameForText || "").trim() || first;
     const guest = storage.createGuest({
       firstName: first,
       lastName: String(lastName || ""),
       partyName: party,
+      nameForText,
       phone: String(phone || ""),
       email: email ? String(email) : null,
       invites: Number(invites) || 1,
       additionalNames: readAdditionalNames(req.body?.additionalNames) ?? [],
-    });
+    } as any);
     res.json({ guest });
   });
 
@@ -415,11 +419,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       firstName: req.body?.firstName,
       lastName: req.body?.lastName,
       partyName: req.body?.partyName,
+      nameForText: req.body?.nameForText,
       phone: req.body?.phone,
       email: req.body?.email,
       invites: req.body?.invites,
       additionalNames: readAdditionalNames(req.body?.additionalNames),
-    });
+    } as any);
     if (!guest) return res.status(404).json({ message: "Guest not found" });
 
     // response fields (optional)
