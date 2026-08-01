@@ -411,8 +411,28 @@ export class Storage {
       );
   }
 
+  /** Same rows as guestsWithResponses() but without the alphabetical sort.
+   *  Used by totals() and other aggregations that don't care about order,
+   *  which halves the work of a save round trip. */
+  private guestsWithResponsesRaw(): GuestWithResponse[] {
+    const rs = this.allResponses();
+    const byGuest = new Map(rs.map((r) => [r.guestId, r]));
+    return this.allGuests().map((g) => ({
+      ...g,
+      response: byGuest.get(g.id) || null,
+    }));
+  }
+
+  /** Return the enriched row for a single guest, or null if not found.
+   *  Cheap — one guest lookup + one response lookup, no full list scan. */
+  guestWithResponse(guestId: string): GuestWithResponse | null {
+    const g = this.getGuest(guestId);
+    if (!g) return null;
+    return { ...g, response: this.getResponseByGuest(guestId) || null };
+  }
+
   totals(): Totals {
-    const rows = this.guestsWithResponses();
+    const rows = this.guestsWithResponsesRaw();
     let totalInvited = 0;
     let totalHeadcount = 0;
     let totalDeclined = 0;
@@ -485,6 +505,23 @@ export class Storage {
       out[r.guestId] = cur;
     }
     return out;
+  }
+
+  /** Count + lastSentAt for a single guest — avoids scanning every log
+   *  row on save when we only need one guest's stats. */
+  messageCountForGuest(guestId: string): { count: number; lastSentAt: number | null } {
+    const rows = db
+      .select()
+      .from(messageLogs)
+      .where(eq(messageLogs.guestId, guestId))
+      .all();
+    let count = 0;
+    let lastSentAt: number | null = null;
+    for (const r of rows) {
+      count += 1;
+      if (lastSentAt === null || r.sentAt > lastSentAt) lastSentAt = r.sentAt;
+    }
+    return { count, lastSentAt };
   }
 }
 

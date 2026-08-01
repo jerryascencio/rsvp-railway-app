@@ -486,11 +486,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
     // Return the fresh row with message counts + lastActivityAt already
     // rolled up so the admin UI can update the row in place without a
-    // second GET (which was the main source of "save takes forever").
-    const fresh = storage.guestsWithResponses().find((g) => g.id === guest.id);
-    const counts = storage.messageCounts();
-    const messageCount = counts[guest.id]?.count ?? 0;
-    const lastMessagedAt = counts[guest.id]?.lastSentAt ?? null;
+    // second GET. Uses per-guest lookups instead of scanning the whole
+    // guest list + every message log — saves ~2x work on each save.
+    const fresh = storage.guestWithResponse(guest.id);
+    const { count: messageCount, lastSentAt: lastMessagedAt } =
+      storage.messageCountForGuest(guest.id);
     const guestUpdatedAt = (fresh as any)?.updatedAt ?? null;
     const responseUpdatedAt = fresh?.response?.updatedAt ?? null;
     const lastActivityAt = [guestUpdatedAt, responseUpdatedAt, lastMessagedAt]
