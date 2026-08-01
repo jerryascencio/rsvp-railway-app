@@ -775,9 +775,18 @@ function valueForSort(
   const r = g.response;
   switch (key) {
     case "name":
-      return `${g.lastName || ""} ${g.firstName || ""} ${g.partyName || ""}`
-        .trim()
-        .toLowerCase();
+      // Match the Name cell's display precedence so sort order matches what
+      // Jerry sees: party name first (e.g. "Alex & Viviana"), then full
+      // name, then first+last. Stripping leading punctuation prevents
+      // parenthesized labels from sorting to the top.
+      return (
+        ((g.partyName && g.partyName.trim()) ||
+          g.fullName ||
+          `${g.firstName || ""} ${g.lastName || ""}`.trim() ||
+          "")
+          .toLowerCase()
+          .replace(/^[^a-z0-9]+/, "") || null
+      );
     case "contact":
       // Sort by digits so (818) 336-8828 and 8183368828 sort together.
       return (g.phone || "").replace(/\D/g, "") || (g.email || "").toLowerCase() || null;
@@ -1028,36 +1037,67 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       // The Hit em up flow will fall back to partyName/firstName at render
       // time too — storing the value makes the CSV export round-trip cleanly.
       const nameForText = (draft.nameForText || "").trim() || draft.firstName.trim();
+      // The PATCH/POST endpoint returns the fresh guest with response,
+      // message counts, and lastActivityAt already rolled up — so we can
+      // update the row in place instead of doing a full /api/admin/guests
+      // reload. That was the main source of "save takes forever".
+      let updatedGuest: GuestWithResponse | null = null;
+      let updatedTotals: Totals | null = null;
       if (draft.id) {
-        await api("PATCH", `/api/admin/guests/${draft.id}`, {
-          firstName: draft.firstName,
-          lastName: draft.lastName,
-          partyName: draft.partyName,
-          nameForText,
-          phone: draft.phone,
-          email: draft.email || null,
-          invites,
-          additionalNames,
-          attendees: hasCounts ? Number(draft.attendees) : undefined,
-          declinedCount:
-            draft.declinedCount === "" ? undefined : Number(draft.declinedCount),
-          note: draft.note || null,
-          clearResponse: !hasCounts && draft.hasResponse,
-        });
+        const res = await api<{ guest: GuestWithResponse | null; totals: Totals }>(
+          "PATCH",
+          `/api/admin/guests/${draft.id}`,
+          {
+            firstName: draft.firstName,
+            lastName: draft.lastName,
+            partyName: draft.partyName,
+            nameForText,
+            phone: draft.phone,
+            email: draft.email || null,
+            invites,
+            additionalNames,
+            attendees: hasCounts ? Number(draft.attendees) : undefined,
+            declinedCount:
+              draft.declinedCount === "" ? undefined : Number(draft.declinedCount),
+            note: draft.note || null,
+            clearResponse: !hasCounts && draft.hasResponse,
+          },
+        );
+        updatedGuest = res.guest;
+        updatedTotals = res.totals;
       } else {
-        await api("POST", "/api/admin/guests", {
-          firstName: draft.firstName,
-          lastName: draft.lastName,
-          partyName: draft.partyName,
-          nameForText,
-          phone: draft.phone,
-          email: draft.email || null,
-          invites,
-          additionalNames,
-        });
+        const res = await api<{ guest: GuestWithResponse; totals: Totals }>(
+          "POST",
+          "/api/admin/guests",
+          {
+            firstName: draft.firstName,
+            lastName: draft.lastName,
+            partyName: draft.partyName,
+            nameForText,
+            phone: draft.phone,
+            email: draft.email || null,
+            invites,
+            additionalNames,
+          },
+        );
+        updatedGuest = res.guest;
+        updatedTotals = res.totals;
       }
       setDraft(null);
-      await load();
+      // Splice the updated/new row directly into local state — zero extra
+      // network round-trip, feels instant.
+      if (updatedGuest) {
+        setGuests((prev) => {
+          const idx = prev.findIndex((g) => g.id === updatedGuest!.id);
+          if (idx >= 0) {
+            const next = prev.slice();
+            next[idx] = updatedGuest!;
+            return next;
+          }
+          return [updatedGuest!, ...prev];
+        });
+      }
+      if (updatedTotals) setTotals(updatedTotals);
       // Snap the table sort to Last activity ↓ so the row Jerry just edited
       // visibly jumps to the top — confirms the save landed.
       setSortBy("lastActivity");

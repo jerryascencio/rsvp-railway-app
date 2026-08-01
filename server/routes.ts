@@ -422,7 +422,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       invites: Number(invites) || 1,
       additionalNames: readAdditionalNames(req.body?.additionalNames) ?? [],
     } as any);
-    res.json({ guest });
+    // Attach the same enriched fields the list endpoint returns so the
+    // frontend can insert the new row in place without a full reload.
+    res.json({
+      guest: {
+        ...guest,
+        response: null,
+        messageCount: 0,
+        lastMessagedAt: null,
+        lastActivityAt: (guest as any).updatedAt ?? Date.now(),
+      },
+      totals: storage.totals(),
+    });
   });
 
   app.patch("/api/admin/guests/:id", requireAdmin, (req, res) => {
@@ -456,7 +467,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         note: req.body?.note ?? storage.getResponseByGuest(guest.id)?.note ?? null,
       });
     }
-    res.json({ guest: storage.guestsWithResponses().find((g) => g.id === guest.id) });
+    // Return the fresh row with message counts + lastActivityAt already
+    // rolled up so the admin UI can update the row in place without a
+    // second GET (which was the main source of "save takes forever").
+    const fresh = storage.guestsWithResponses().find((g) => g.id === guest.id);
+    const counts = storage.messageCounts();
+    const messageCount = counts[guest.id]?.count ?? 0;
+    const lastMessagedAt = counts[guest.id]?.lastSentAt ?? null;
+    const guestUpdatedAt = (fresh as any)?.updatedAt ?? null;
+    const responseUpdatedAt = fresh?.response?.updatedAt ?? null;
+    const lastActivityAt = [guestUpdatedAt, responseUpdatedAt, lastMessagedAt]
+      .filter((v): v is number => typeof v === "number")
+      .reduce<number | null>((max, v) => (max === null || v > max ? v : max), null);
+    res.json({
+      guest: fresh ? { ...fresh, messageCount, lastMessagedAt, lastActivityAt } : null,
+      totals: storage.totals(),
+    });
   });
 
   app.delete("/api/admin/guests/:id", requireAdmin, (req, res) => {
