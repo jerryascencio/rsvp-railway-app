@@ -734,13 +734,15 @@ export default function Home() {
               const matchedExtraLast =
                 (matchedExtra?.lastName && matchedExtra.lastName.trim()) ||
                 primaryLast;
-              // Fall back through party name and first+last for rows where
-              // fullName is blank (e.g. an imported "Marty & Jerry & Mama
-              // Luz" household with no primary firstName filled in). Cards
-              // must never render an empty title.
+              // Prefer the household's party label (e.g. "Sara & Owen" or
+              // "Marty & Jerry & Mama Luz") — that's the name the
+              // household actually recognizes on their invitation. Only
+              // fall through to the primary contact's full name when no
+              // party label is set, and to first+last as a final safety
+              // net so cards never render empty.
               const primaryHeadline =
-                (m.fullName && m.fullName.trim()) ||
                 (m.partyName && m.partyName.trim()) ||
+                (m.fullName && m.fullName.trim()) ||
                 `${m.firstName || ""} ${m.lastName || ""}`.trim();
               const headline = matchedExtra
                 ? `${matchedExtra.firstName}${
