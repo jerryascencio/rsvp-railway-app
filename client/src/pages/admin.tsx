@@ -830,11 +830,14 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
   const [sortBy, setSortBy] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const toggleSort = (key: SortKey) => {
+    // For timestamp-y columns, default to descending (newest first) since
+    // that's the natural read. Text columns default to ascending (A→Z).
+    const initialDir: "asc" | "desc" = key === "lastActivity" ? "desc" : "asc";
     if (sortBy !== key) {
       setSortBy(key);
-      setSortDir("asc");
-    } else if (sortDir === "asc") {
-      setSortDir("desc");
+      setSortDir(initialDir);
+    } else if (sortDir === initialDir) {
+      setSortDir(initialDir === "asc" ? "desc" : "asc");
     } else {
       setSortBy(null);
       setSortDir("asc");
@@ -920,14 +923,19 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
   const sortedRows = useMemo(() => {
     if (!sortBy) return rows;
     const dir = sortDir === "asc" ? 1 : -1;
+    // Null-handling rule: treat a null value as the LOWEST possible value
+    // ("less than the oldest timestamp", "less than the empty string").
+    // That way:
+    //   Last activity asc  → [never-touched, oldest, ..., newest]
+    //   Last activity desc → [newest, ..., oldest, never-touched]
+    // Matches the natural read: click once for newest first, click again to
+    // surface "who haven't we touched yet?" at the top of the list.
     const compare = (a: GuestWithResponse, b: GuestWithResponse): number => {
       const va = valueForSort(a, sortBy);
       const vb = valueForSort(b, sortBy);
-      // Nullish values always sort to the bottom regardless of direction
-      // — "no activity yet" or "no note" shouldn't jump to the top.
       if (va == null && vb == null) return 0;
-      if (va == null) return 1;
-      if (vb == null) return -1;
+      if (va == null) return -1 * dir;
+      if (vb == null) return 1 * dir;
       if (typeof va === "number" && typeof vb === "number") {
         return (va - vb) * dir;
       }
