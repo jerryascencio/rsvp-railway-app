@@ -734,11 +734,19 @@ export default function Home() {
               const matchedExtraLast =
                 (matchedExtra?.lastName && matchedExtra.lastName.trim()) ||
                 primaryLast;
+              // Fall back through party name and first+last for rows where
+              // fullName is blank (e.g. an imported "Marty & Jerry & Mama
+              // Luz" household with no primary firstName filled in). Cards
+              // must never render an empty title.
+              const primaryHeadline =
+                (m.fullName && m.fullName.trim()) ||
+                (m.partyName && m.partyName.trim()) ||
+                `${m.firstName || ""} ${m.lastName || ""}`.trim();
               const headline = matchedExtra
                 ? `${matchedExtra.firstName}${
                     matchedExtraLast ? " " + matchedExtraLast : ""
-                  }`.trim()
-                : m.fullName;
+                  }`.trim() || primaryHeadline
+                : primaryHeadline;
               // For a matched extra, prefer the household's party label
               // (e.g. "Marty & Jerry & Mama Luz") when it's set — that's the
               // name the household actually recognizes. Fall back to the
