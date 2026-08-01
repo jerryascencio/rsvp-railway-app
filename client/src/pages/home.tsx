@@ -696,101 +696,144 @@ export default function Home() {
             </p>
           )}
 
-          {searched && matches.length >= 1 && !guest && (
-            <div className="mt-8" data-testid="section-choose">
-              <p className="font-display text-center text-lg text-[hsl(346_33%_46%)]">
-                {matches.length === 1
-                  ? t("search.confirmYou")
-                  : t("search.which")}
-              </p>
-              <ul className="mt-4 space-y-3">
-                {matches.map((m) => {
-                  // If the search matched an additional household member (not the
-                  // primary contact), surface THAT person's name as the headline
-                  // and clarify they belong to the primary's party.
-                  const needle = query.trim().toLowerCase();
-                  const primaryHit =
-                    !!needle &&
-                    ((m.firstName || "").toLowerCase().includes(needle) ||
-                      (m.lastName || "").toLowerCase().includes(needle) ||
-                      `${m.firstName} ${m.lastName}`.toLowerCase().includes(needle) ||
-                      (m.email || "").toLowerCase().includes(needle));
-                  const primaryLast = (m.lastName || "").trim();
-                  const matchedExtra =
-                    !primaryHit && needle
-                      ? (m.additionalNames || []).find((n) => {
-                          const f = (n.firstName || "").toLowerCase();
-                          // Fall back to primary's last name if the extra doesn't
-                          // have one recorded (e.g. "Adrian" in the Ascencio party).
-                          const effectiveLast =
-                            (n.lastName && n.lastName.trim()) || primaryLast;
-                          const l = effectiveLast.toLowerCase();
-                          const full = `${n.firstName} ${effectiveLast}`
-                            .trim()
-                            .toLowerCase();
-                          return (
-                            (f && f.includes(needle)) ||
-                            (l && l.includes(needle)) ||
-                            (full && full.includes(needle))
-                          );
-                        })
-                      : undefined;
-                  // Prefer the extra's own last name; if blank, borrow the
-                  // primary's so the headline reads e.g. "Adrian Ascencio".
-                  const matchedExtraLast =
-                    (matchedExtra?.lastName && matchedExtra.lastName.trim()) ||
-                    primaryLast;
-                  const headline = matchedExtra
-                    ? `${matchedExtra.firstName}${
-                        matchedExtraLast ? " " + matchedExtraLast : ""
-                      }`.trim()
-                    : m.fullName;
-                  const subLine = matchedExtra
-                    ? t("partyMember.template", {
-                        name: matchedExtra.firstName || headline,
-                        primary: m.fullName,
-                      })
-                    : householdLabel(m, t, { includePartyOf: false });
-                  return (
-                    <li key={m.id}>
-                      <button
-                        type="button"
-                        onClick={() => selectGuest(m)}
-                        className="w-full rounded-lg border border-[hsl(28_31%_55%/.3)] bg-[hsl(28_60%_98%)] px-5 py-4 text-left transition hover:border-[hsl(346_37%_56%/.6)] hover:bg-white"
-                        data-testid={`button-select-guest-${m.id}`}
+          {searched && matches.length >= 1 && !guest && (() => {
+            // Split results: pending (haven't RSVP'd yet) on top, already
+            // responded tucked behind a "Looking to make a change?"
+            // disclosure so a fresh guest sees the pending ones first.
+            const pendingMatches = matches.filter((m) => !m.existing);
+            const respondedMatches = matches.filter((m) => m.existing);
+            const needle = query.trim().toLowerCase();
+            const renderCard = (m: Match) => {
+              const primaryHit =
+                !!needle &&
+                ((m.firstName || "").toLowerCase().includes(needle) ||
+                  (m.lastName || "").toLowerCase().includes(needle) ||
+                  `${m.firstName} ${m.lastName}`.toLowerCase().includes(needle) ||
+                  (m.email || "").toLowerCase().includes(needle));
+              const primaryLast = (m.lastName || "").trim();
+              const matchedExtra =
+                !primaryHit && needle
+                  ? (m.additionalNames || []).find((n) => {
+                      const f = (n.firstName || "").toLowerCase();
+                      const effectiveLast =
+                        (n.lastName && n.lastName.trim()) || primaryLast;
+                      const l = effectiveLast.toLowerCase();
+                      const full = `${n.firstName} ${effectiveLast}`
+                        .trim()
+                        .toLowerCase();
+                      return (
+                        (f && f.includes(needle)) ||
+                        (l && l.includes(needle)) ||
+                        (full && full.includes(needle))
+                      );
+                    })
+                  : undefined;
+              const matchedExtraLast =
+                (matchedExtra?.lastName && matchedExtra.lastName.trim()) ||
+                primaryLast;
+              const headline = matchedExtra
+                ? `${matchedExtra.firstName}${
+                    matchedExtraLast ? " " + matchedExtraLast : ""
+                  }`.trim()
+                : m.fullName;
+              const subLine = matchedExtra
+                ? t("partyMember.template", {
+                    name: matchedExtra.firstName || headline,
+                    primary: m.fullName,
+                  })
+                : householdLabel(m, t, { includePartyOf: false });
+              return (
+                <li key={m.id}>
+                  <button
+                    type="button"
+                    onClick={() => selectGuest(m)}
+                    className="w-full rounded-lg border border-[hsl(28_31%_55%/.3)] bg-[hsl(28_60%_98%)] px-5 py-4 text-left transition hover:border-[hsl(346_37%_56%/.6)] hover:bg-white"
+                    data-testid={`button-select-guest-${m.id}`}
+                  >
+                    <span className="font-display block text-lg text-[hsl(19_17%_24%)]">
+                      {headline}
+                    </span>
+                    {subLine && (
+                      <span
+                        className="mt-0.5 block font-display text-sm italic text-[hsl(19_14%_45%)]"
+                        data-testid={`text-household-${m.id}`}
                       >
-                        <span className="font-display block text-lg text-[hsl(19_17%_24%)]">
-                          {headline}
-                        </span>
-                        {subLine && (
-                          <span
-                            className="mt-0.5 block font-display text-sm italic text-[hsl(19_14%_45%)]"
-                            data-testid={`text-household-${m.id}`}
-                          >
-                            {subLine}
-                          </span>
-                        )}
-                        {m.existing && (
-                          <span className="label-caps text-[10px]">
-                            {t("search.alreadyResponded")}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-              {matches.length === 1 && (
-                <button
-                  type="button"
-                  onClick={reset}
-                  className="mt-4 w-full text-center font-display text-sm italic text-[hsl(19_14%_45%)] underline decoration-[hsl(346_37%_56%/.4)] underline-offset-4 hover:text-[hsl(346_33%_46%)]"
-                  data-testid="button-search-again"
-                >
-                  {t("search.noSearchAgain")}
-                </button>
-              )}
-            </div>
+                        {subLine}
+                      </span>
+                    )}
+                    {m.existing && (
+                      <span className="label-caps mt-1 block text-[10px]">
+                        {t("search.alreadyResponded")}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            };
+            // Heading follows the pending list. If every result already
+            // responded, acknowledge that explicitly — the disclosure
+            // becomes the only path forward.
+            const heading =
+              pendingMatches.length >= 1
+                ? pendingMatches.length === 1
+                  ? t("search.confirmYou")
+                  : t("search.which")
+                : t("search.allResponded");
+            return (
+              <div className="mt-8" data-testid="section-choose">
+                <p className="font-display text-center text-lg text-[hsl(346_33%_46%)]">
+                  {heading}
+                </p>
+                {pendingMatches.length > 0 && (
+                  <ul
+                    className="mt-4 space-y-3"
+                    data-testid="list-pending-matches"
+                  >
+                    {pendingMatches.map(renderCard)}
+                  </ul>
+                )}
+                {respondedMatches.length > 0 && (
+                  <div
+                    className={pendingMatches.length > 0 ? "mt-6" : "mt-4"}
+                    data-testid="section-responded"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setShowResponded((v) => !v)}
+                      className="w-full rounded-lg border border-dashed border-[hsl(28_31%_65%)] bg-[hsl(28_60%_98%)] px-5 py-3 text-center transition hover:border-[hsl(346_37%_56%/.6)]"
+                      aria-expanded={showResponded}
+                      data-testid="button-toggle-responded"
+                    >
+                      <span className="font-display block text-base italic text-[hsl(346_33%_46%)]">
+                        {t("search.changeReservationPrompt")}
+                      </span>
+                      <span className="mt-1 block text-xs text-[hsl(19_14%_45%)]">
+                        {showResponded
+                          ? t("search.changeReservationHide")
+                          : t("search.changeReservationCta")}
+                      </span>
+                    </button>
+                    {showResponded && (
+                      <ul
+                        className="mt-3 space-y-3"
+                        data-testid="list-responded-matches"
+                      >
+                        {respondedMatches.map(renderCard)}
+                      </ul>
+                    )}
+                  </div>
+                )}
+                {matches.length === 1 && (
+                  <button
+                    type="button"
+                    onClick={reset}
+                    className="mt-4 w-full text-center font-display text-sm italic text-[hsl(19_14%_45%)] underline decoration-[hsl(346_37%_56%/.4)] underline-offset-4 hover:text-[hsl(346_33%_46%)]"
+                    data-testid="button-search-again"
+                  >
+                    {t("search.noSearchAgain")}
+                  </button>
+                )}
+              </div>
             );
           })()}
         </Card>
