@@ -514,7 +514,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const parsedCount = fullNamesRaw ? splitFullNames(fullNamesRaw).length : 0;
       const explicit = Number.isFinite(explicitInvites) && explicitInvites > 0 ? explicitInvites : 0;
       const invitesGuess = Math.max(explicit, sumInvites, parsedCount);
-      const invites = Math.max(1, invitesGuess || 1);
+      // Skip zero-invite rows outright — Jerry uses 0/blank invites as a signal
+      // that the party isn't invited (Crystal & Mikey, Jackie & BF, Maria/
+      // boyfriend, Christian). Don't inflate them to 1 seat.
+      if (invitesGuess <= 0) {
+        skipped++;
+        continue;
+      }
+      const invites = invitesGuess;
 
       // Parse free-form "Full names" field into primary + extras. Handles the
       // patterns Jerry uses: "," / "&" / " y " separators, "x2" suffix meaning
