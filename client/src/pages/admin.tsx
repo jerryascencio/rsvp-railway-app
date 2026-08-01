@@ -485,13 +485,28 @@ function HitEmUpDialog({
   const current = sendable[index];
   const done = started && index >= sendable.length;
 
-  // After tapping Send + returning to Safari, auto-focus the Next button so
-  // Jerry can tap-tap-tap through the list without hunting for it.
+  // After tapping Send + returning to Safari, auto-focus the primary button
+  // so Jerry can tap-tap-tap through the list without hunting for it. Also
+  // refocuses when Safari regains visibility (returning from iMessage).
   useEffect(() => {
     if (started && !done && nextButtonRef.current) {
-      nextButtonRef.current.focus();
+      // Small delay lets the label transition to "Next → X" first so the
+      // button he sees on return already shows the next action.
+      const t = setTimeout(() => nextButtonRef.current?.focus(), 50);
+      return () => clearTimeout(t);
     }
-  }, [index, started, done]);
+  }, [index, started, done, sentIds]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && nextButtonRef.current) {
+        nextButtonRef.current.focus();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [open]);
 
   function insertChip(field: string) {
     const ta = textareaRef.current;
@@ -653,23 +668,47 @@ function HitEmUpDialog({
               </div>
             </div>
             <DialogFooter className="gap-2 sm:flex-col sm:items-stretch">
-              <div className="flex gap-2">
-                <Button
-                  ref={nextButtonRef}
-                  className="flex-1"
-                  onClick={() => {
-                    sendCurrent();
-                  }}
-                  data-testid="button-send-current"
-                >
-                  <Send className="mr-1.5 h-3.5 w-3.5" />
-                  Send to {current?.nameForText || current?.partyName || "this person"}
-                </Button>
-                <Button variant="outline" onClick={advance} data-testid="button-skip-current">
-                  <SkipForward className="mr-1.5 h-3.5 w-3.5" />
-                  Skip
-                </Button>
-              </div>
+              {(() => {
+                // Single big primary action that flips label based on state.
+                // After Send: the same button becomes "Next → Y" so Jerry can
+                // one-tap through the whole list from Safari without hunting.
+                const alreadySent = !!current && sentIds.has(current.id);
+                const nextRecipient = sendable[index + 1];
+                const nextName =
+                  nextRecipient?.nameForText ||
+                  nextRecipient?.partyName ||
+                  nextRecipient?.firstName ||
+                  "next person";
+                const currentName =
+                  current?.nameForText ||
+                  current?.partyName ||
+                  current?.firstName ||
+                  "this person";
+                return (
+                  <Button
+                    ref={nextButtonRef}
+                    onClick={() => {
+                      if (alreadySent) advance();
+                      else sendCurrent();
+                    }}
+                    className="h-16 w-full text-base font-semibold shadow-sm"
+                    data-testid={alreadySent ? "button-next-recipient" : "button-send-current"}
+                    autoFocus
+                  >
+                    {alreadySent ? (
+                      <>
+                        <ArrowUp className="mr-2 h-5 w-5 rotate-90" />
+                        {nextRecipient ? `Next → ${nextName}` : "Finish"}
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-5 w-5" />
+                        Send to {currentName}
+                      </>
+                    )}
+                  </Button>
+                );
+              })()}
               <div className="flex justify-between gap-2">
                 <Button
                   variant="ghost"
@@ -685,10 +724,10 @@ function HitEmUpDialog({
                   variant="outline"
                   size="sm"
                   onClick={advance}
-                  disabled={!sentIds.has(current?.id || "")}
-                  data-testid="button-next-recipient"
+                  data-testid="button-skip-current"
                 >
-                  Next →
+                  <SkipForward className="mr-1.5 h-3.5 w-3.5" />
+                  Skip
                 </Button>
               </div>
             </DialogFooter>
