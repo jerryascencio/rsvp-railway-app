@@ -695,6 +695,10 @@ export function PadrinosSection() {
           label={t("padrinos.regaloLabel")}
           names="Stefanie J Ascencio & Gerardo Ascencio Jr"
         />
+        <PadrinoRow
+          label={t("padrinos.recuerdosLabel")}
+          names="Ampelia De Dios & Gabino Garcia"
+        />
       </div>
     </section>
   );

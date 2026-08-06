@@ -274,6 +274,7 @@ export const translations = {
     coronacionLabel: { en: "Coronación", es: "Coronación" },
     zapatosLabel: { en: "Change of Shoes", es: "Cambio de Zapatos" },
     regaloLabel: { en: "Regalo Sorpresa", es: "Regalo Sorpresa" },
+    recuerdosLabel: { en: "Padrinos de Recuerdos", es: "Padrinos de Recuerdos" },
   },
   court: {
     eyebrow: { en: "BY HER SIDE", es: "A SU LADO" },
