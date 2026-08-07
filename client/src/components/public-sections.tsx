@@ -11,8 +11,8 @@ import { useLanguage } from "@/lib/language";
 import leahPhotoUrl from "@/assets/leah.jpg";
 import hotelHiltonUrl from "@/assets/hotel-hilton.jpg";
 import hotelSheratonUrl from "@/assets/hotel-sheraton.jpg";
-import hotelCourtyardUrl from "@/assets/hotel-courtyard.jpg";
-import hotelHamptonUrl from "@/assets/hotel-hampton.jpg";
+import hotelHieVanNuysUrl from "@/assets/hotel-hie-vannuys.jpg";
+import hotelHamptonShermanOaksUrl from "@/assets/hotel-hampton-shermanoaks.jpg";
 import venueChurchUrl from "@/assets/venue-church.jpg";
 import venueHallUrl from "@/assets/venue-hall.jpg";
 
@@ -492,6 +492,10 @@ type Hotel = {
   noteKey?: string;
   searchCity: string;
   photo: string;
+  // Direct booking URL to the hotel's own site (Hilton, Marriott, IHG,
+  // etc.). When set, the "Book stay" button links straight to the
+  // property's reservation page instead of a Google search.
+  bookingUrl?: string;
 };
 
 const HOTELS: Hotel[] = [
@@ -502,6 +506,8 @@ const HOTELS: Hotel[] = [
     phone: "(818) 226-1000",
     searchCity: "Woodland Hills",
     photo: hotelHiltonUrl,
+    bookingUrl:
+      "https://www.hilton.com/en/hotels/burwchf-hilton-woodland-hills-los-angeles/",
   },
   {
     name: "Sheraton Universal",
@@ -510,21 +516,28 @@ const HOTELS: Hotel[] = [
     phone: "(818) 980-1212",
     searchCity: "Universal City",
     photo: hotelSheratonUrl,
+    bookingUrl:
+      "https://www.marriott.com/en-us/hotels/bursi-sheraton-universal-hotel/overview/",
   },
   {
-    name: "Courtyard by Marriott Sherman Oaks",
-    miles: "7",
-    address: "15433 Ventura Blvd, Sherman Oaks, CA 91403",
-    phone: "(818) 981-5400",
+    name: "Holiday Inn Express Van Nuys",
+    miles: "5",
+    address: "8244 Orion Ave, Van Nuys, CA 91406",
+    phone: "(818) 989-5010",
+    searchCity: "Van Nuys",
+    photo: hotelHieVanNuysUrl,
+    bookingUrl:
+      "https://www.ihg.com/holidayinnexpress/hotels/us/en/van-nuys/laxvn/hoteldetail",
+  },
+  {
+    name: "Hampton Inn & Suites LA/Sherman Oaks",
+    miles: "6",
+    address: "5638 Sepulveda Blvd, Sherman Oaks, CA 91411",
+    phone: "(818) 785-6666",
     searchCity: "Sherman Oaks",
-    photo: hotelCourtyardUrl,
-  },
-  {
-    name: "Hampton Inn Panorama City",
-    miles: "3",
-    noteKey: "hotels.confirmAvailability",
-    searchCity: "Panorama City",
-    photo: hotelHamptonUrl,
+    photo: hotelHamptonShermanOaksUrl,
+    bookingUrl:
+      "https://www.hilton.com/en/hotels/laxvnhx-hampton-suites-los-angeles-sherman-oaks/",
   },
 ];
 
@@ -567,9 +580,12 @@ export function HotelsSection() {
               </p>
               <span className="flex-1" aria-hidden="true" />
               <a
-                href={`https://www.google.com/search?q=${encodeURIComponent(
-                  `${h.name} ${h.searchCity} hotel booking`,
-                )}`}
+                href={
+                  h.bookingUrl ??
+                  `https://www.google.com/search?q=${encodeURIComponent(
+                    `${h.name} ${h.searchCity} hotel booking`,
+                  )}`
+                }
                 target="_blank"
                 rel="noreferrer"
                 className={`${ROSE_BUTTON} mt-5 w-full flex-none self-stretch`}
