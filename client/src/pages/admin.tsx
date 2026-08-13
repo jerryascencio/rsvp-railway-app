@@ -797,8 +797,13 @@ function valueForSort(
     case "declined":
       return r ? r.declinedCount : null;
     case "pending":
-      // Unresponded households have `invites` pending seats; responded = 0.
-      return r ? 0 : g.invites;
+      // Seats not yet accounted for. Unresponded households have all
+      // their invites pending. Responded households usually zero out,
+      // but occasionally attending+declined < invites (party of 9 saved
+      // as 6+2 with 1 seat unaccounted) — those seats stay pending.
+      return r
+        ? Math.max(0, g.invites - r.attendees - r.declinedCount)
+        : g.invites;
     case "note":
       return (r?.note || "").toLowerCase() || null;
     case "lastActivity":
@@ -1807,13 +1812,29 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                             {r ? r.declinedCount : <span className="text-neutral-400">—</span>}
                           </td>
                           <td className="px-4 py-3">
-                            {r ? (
-                              <span className="text-neutral-400">0</span>
-                            ) : (
-                              <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                                {g.invites}
-                              </span>
-                            )}
+                            {(() => {
+                              const pending = r
+                                ? Math.max(
+                                    0,
+                                    g.invites - r.attendees - r.declinedCount,
+                                  )
+                                : g.invites;
+                              if (pending === 0) {
+                                return <span className="text-neutral-400">0</span>;
+                              }
+                              return (
+                                <span
+                                  className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"
+                                  title={
+                                    r
+                                      ? `${g.invites} invited − ${r.attendees} attending − ${r.declinedCount} declined = ${pending} unaccounted`
+                                      : undefined
+                                  }
+                                >
+                                  {pending}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td className="max-w-[240px] px-4 py-3 text-neutral-600">
                             {r?.note ? (

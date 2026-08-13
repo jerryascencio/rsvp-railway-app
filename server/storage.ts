@@ -444,7 +444,21 @@ export class Storage {
       if (g.response) {
         respondedHouseholds += 1;
         totalHeadcount += g.response.attendees;
-        totalDeclined += Math.max(0, g.invites - g.response.attendees);
+        // Trust the response's declined field — don't infer
+        // "invites - attending" (that hides unaccounted seats in
+        // partially-answered households).
+        totalDeclined += g.response.declinedCount;
+        // Any leftover seats in a responded household are still
+        // pending, and their household is a pending household for
+        // reporting purposes.
+        const leftover = Math.max(
+          0,
+          g.invites - g.response.attendees - g.response.declinedCount,
+        );
+        if (leftover > 0) {
+          totalPending += leftover;
+          totalPendingHouseholds += 1;
+        }
       } else {
         totalPendingHouseholds += 1;
         totalPending += g.invites;

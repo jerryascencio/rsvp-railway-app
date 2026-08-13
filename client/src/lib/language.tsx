@@ -251,6 +251,10 @@ export const translations = {
       en: "{a} attending, {d} not attending.",
       es: "{a} asistir\u00e1n, {d} no asistir\u00e1n.",
     },
+    additionalGuest: {
+      en: "Guest {n}",
+      es: "Invitado {n}",
+    },
   },
   partyMember: {
     // e.g. "Stefanie — part of Gerardo Ascencio Jr's party"

@@ -459,10 +459,17 @@ export default function Home() {
     const typedIdx = typedExtras
       .map((s, i) => ({ s: s.trim(), i }))
       .filter((x) => x.s.length > 0);
-    const keys =
+    const namedKeys =
       stored.length > 0
         ? ["primary", ...stored.map((_, i) => `extra-${i}`)]
         : ["primary", ...typedIdx.map((x) => `extra-${x.i}`)];
+    // Include the padded "slot-N" keys used when the checklist is padded
+    // out to guest.invites (see checklist render). Without these, the
+    // yes/no clicks on unnamed seats wouldn't count toward totals.
+    const keys = [...namedKeys];
+    for (let i = namedKeys.length; i < guest.invites; i++) {
+      keys.push(`slot-${i}`);
+    }
     const next: Record<string, "yes" | "no" | null> = { ...personStatus, [key]: status };
     let a = 0;
     let d = 0;
@@ -502,22 +509,22 @@ export default function Home() {
   async function submitRsvp(e: React.FormEvent) {
     e.preventDefault();
     if (!guest) return;
-    const storedExtras = (guest.additionalNames || []).filter(
-      (n) => n.firstName || n.lastName,
-    ).length;
-    const typedExtrasNow = typedExtras.map((s) => s.trim()).filter(Boolean).length;
-    const effectiveExtras =
-      storedExtras > 0 ? storedExtras : typedExtrasNow > 0 ? typedExtrasNow : 0;
-    const expectedTotal = effectiveExtras > 0 ? 1 + effectiveExtras : guest.invites;
-    if (attending + declined !== expectedTotal) return;
+    // The invited party size is the source of truth. Extras-list length
+    // is only a naming hint — a household of 9 with only 7 additional
+    // names on file is still a party of 9, and attending+declined must
+    // still sum to 9 (otherwise a seat goes unaccounted for).
+    if (attending + declined !== guest.invites) return;
     setSubmitting(true);
     setError(null);
     try {
       // Optional names the guest typed in themselves (host didn't record any).
       // Split "First Last" naively into firstName + lastName; single-word
       // entries land in firstName. Blank entries are skipped.
+      const storedExtrasCount = (guest.additionalNames || []).filter(
+        (n) => n.firstName || n.lastName,
+      ).length;
       const typedNamesPayload =
-        storedExtras === 0
+        storedExtrasCount === 0
           ? typedExtras
               .map((raw) => raw.trim())
               .filter(Boolean)
@@ -622,21 +629,13 @@ export default function Home() {
   }
 
   /* ------------------------------------------------------------- main view */
+  // The invited party size (guest.invites) is the single source of
+  // truth. Attending + declined must sum to it before we let the guest
+  // submit — otherwise unaccounted seats slip through (e.g. a party of
+  // 9 that got saved as 6 attending + 2 declined = 8, leaving 1 seat
+  // in limbo).
   const sum = guest ? attending + declined : 0;
-  // For households with a named guest list, "complete" means everyone has been
-  // marked yes/no. For plus-N households, we still require attending + declined
-  // to equal the invited count.
-  const storedExtrasCount = guest
-    ? (guest.additionalNames || []).filter((n) => n.firstName || n.lastName).length
-    : 0;
-  const typedExtrasCount = typedExtras.map((s) => s.trim()).filter(Boolean).length;
-  const usingNamedList = storedExtrasCount > 0 || typedExtrasCount > 0;
-  const sumOk = guest
-    ? usingNamedList
-      ? 1 + (storedExtrasCount > 0 ? storedExtrasCount : typedExtrasCount) ===
-        attending + declined
-      : sum === guest.invites
-    : false;
+  const sumOk = guest ? sum === guest.invites : false;
 
   return (
     <WideShell>
@@ -926,6 +925,18 @@ export default function Home() {
                           .filter((x) => x.raw.length > 0)
                           .map(({ raw, i }) => ({ key: `extra-${i}`, name: raw }))),
                   ];
+                  // Pad up to the invited party size so every seat needs a
+                  // yes/no. Prevents partial submissions like the party of 9
+                  // where the host only recorded 7 extras but the household
+                  // was invited for 9 (6 attending + 2 declined would have
+                  // left a seat unaccounted).
+                  while (people.length < guest.invites) {
+                    const idx = people.length; // 1-based guest number is idx+1
+                    people.push({
+                      key: `slot-${idx}`,
+                      name: t("guestList.additionalGuest", { n: idx + 1 }),
+                    });
+                  }
                   const anyUnanswered = people.some((p) => !personStatus[p.key]);
 
                   return (
