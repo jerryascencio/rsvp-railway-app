@@ -294,8 +294,8 @@ export const translations = {
     eyebrow: { en: "ATTIRE", es: "VESTIMENTA" },
     heading: { en: "Dress Code", es: "Código de Vestimenta" },
     body: {
-      en: "Formal / Semi-formal attire. We kindly ask our guests to celebrate with us in their finest.",
-      es: "Vestimenta formal / semiformal. Les pedimos amablemente que nos acompañen en su mejor atuendo.",
+      en: "Formal attire. We kindly ask our guests to celebrate with us in their finest.",
+      es: "Vestimenta formal. Les pedimos amablemente que nos acompañen en su mejor atuendo.",
     },
   },
   footer: {
