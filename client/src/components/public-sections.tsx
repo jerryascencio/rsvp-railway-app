@@ -804,3 +804,41 @@ export function DressCodeSection() {
     </section>
   );
 }
+
+/* ---------------------------------------------------------- gift registry */
+
+export function GiftRegistrySection() {
+  const { t } = useLanguage();
+  return (
+    <section data-testid="section-gift-registry">
+      <SectionHeader eyebrow={t("gift.eyebrow")} heading={t("gift.heading")} ornament />
+      <p className="font-display mx-auto mt-5 max-w-xl text-center text-[17px] leading-[1.7] text-[hsl(19_17%_30%)]">
+        {t("gift.body")}
+      </p>
+      <div className="mt-6 flex justify-center" aria-hidden="true">
+        <svg
+          width="64"
+          height="52"
+          viewBox="0 0 64 52"
+          fill="none"
+          stroke="hsl(28 31% 45%)"
+          strokeWidth="1.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          {/* envelope body */}
+          <rect x="6" y="12" width="52" height="32" rx="1.5" />
+          {/* flap */}
+          <path d="M6 12 L32 30 L58 12" />
+          {/* side folds */}
+          <path d="M6 44 L26 28" opacity="0.7" />
+          <path d="M58 44 L38 28" opacity="0.7" />
+          {/* ribbon bow */}
+          <path d="M32 30 C 30 34, 26 34, 28 30 C 26 26, 30 26, 32 30 Z" fill="hsl(28 60% 96%)" />
+          <path d="M32 30 C 34 34, 38 34, 36 30 C 38 26, 34 26, 32 30 Z" fill="hsl(28 60% 96%)" />
+          <circle cx="32" cy="30" r="1.2" fill="hsl(28 31% 45%)" />
+        </svg>
+      </div>
+    </section>
+  );
+}

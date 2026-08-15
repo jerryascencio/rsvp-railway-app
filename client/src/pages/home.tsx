@@ -18,6 +18,7 @@ import {
   PadrinosSection,
   Countdown,
   DressCodeSection,
+  GiftRegistrySection,
   HotelsSection,
   LanguageToggle,
   ScheduleSection,
@@ -1203,6 +1204,8 @@ export default function Home() {
         )}
       </div>
 
+      <SectionOrnament />
+      <GiftRegistrySection />
       <SectionOrnament />
       <AboutSection />
       <SectionOrnament />

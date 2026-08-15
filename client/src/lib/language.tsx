@@ -298,6 +298,17 @@ export const translations = {
       es: "Vestimenta formal. Les pedimos amablemente que nos acompañen en su mejor atuendo.",
     },
   },
+  gift: {
+    eyebrow: { en: "GIFT REGISTRY", es: "MESA DE REGALOS" },
+    heading: {
+      en: "Your presence is my greatest gift",
+      es: "Tu presencia es mi mejor regalo",
+    },
+    body: {
+      en: "If you wish to give me a special gift, a monetary gift in an envelope would be sincerely appreciated on the day of the celebration.",
+      es: "Si desean darme un regalo especial, un obsequio monetario en un sobre será sinceramente apreciado el día de la celebración.",
+    },
+  },
   footer: {
     love: { en: "With love, the Espinoza De Anda Family", es: "Con cariño, la Familia Espinoza De Anda" },
     hostLogin: { en: "Host Login", es: "Acceso Anfitrión" },
