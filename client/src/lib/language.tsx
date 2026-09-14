@@ -309,6 +309,26 @@ export const translations = {
       es: "Si desean darme un regalo especial, un obsequio monetario en un sobre será sinceramente apreciado el día de la celebración.",
     },
   },
+  photos: {
+    eyebrow: { en: "SHARE YOUR MEMORIES", es: "COMPARTE TUS RECUERDOS" },
+    heading: {
+      en: "Help us relive every moment",
+      es: "Ayúdanos a revivir cada momento",
+    },
+    body: {
+      en: "Scan the QR code or tap the button to upload your photos & videos from Leah's special day. No account needed — everything is saved in high resolution.",
+      es: "Escanea el código QR o toca el botón para subir tus fotos y videos del día especial de Leah. No necesitas cuenta — todo se guarda en alta resolución.",
+    },
+    button: { en: "Upload photos & videos", es: "Subir fotos y videos" },
+    caption: {
+      en: "Powered by Dropbox • Uploads are private to the family",
+      es: "Con tecnología de Dropbox • Las subidas son privadas para la familia",
+    },
+    qrAlt: {
+      en: "QR code to upload photos and videos to Leah's Dropbox",
+      es: "Código QR para subir fotos y videos al Dropbox de Leah",
+    },
+  },
   footer: {
     love: { en: "With love, the Espinoza De Anda Family", es: "Con cariño, la Familia Espinoza De Anda" },
     hostLogin: { en: "Host Login", es: "Acceso Anfitrión" },

@@ -182,4 +182,7 @@ export const EVENT = {
   receptionVenue: "Platinum Banquet Hall",
   receptionAddress: "8704 Van Nuys Blvd, Panorama City, CA 91402",
   rsvpBy: "August 18, 2026",
+  // Dropbox File Request — guests upload photos & videos here, no account
+  // needed. Files land in Jerry's Dropbox folder for the event.
+  photoUploadUrl: "https://www.dropbox.com/request/zdpnmuv9575d1w20m4aj",
 };

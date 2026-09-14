@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Camera,
   Church,
   Heart,
   MapPin,
@@ -8,6 +9,7 @@ import {
 } from "lucide-react";
 import { Divider, SmallFlourish } from "@/components/ornaments";
 import { useLanguage } from "@/lib/language";
+import { EVENT } from "@shared/schema";
 import leahPhotoUrl from "@/assets/leah.jpg";
 import hotelHiltonUrl from "@/assets/hotel-hilton.jpg";
 import hotelSheratonUrl from "@/assets/hotel-sheraton.jpg";
@@ -15,6 +17,7 @@ import hotelHieVanNuysUrl from "@/assets/hotel-hie-vannuys.jpg";
 import hotelHamptonShermanOaksUrl from "@/assets/hotel-hampton-shermanoaks.jpg";
 import venueChurchUrl from "@/assets/venue-church.jpg";
 import venueHallUrl from "@/assets/venue-hall.jpg";
+import photoQrUrl from "@/assets/photo-qr.png";
 
 /* -------------------------------------------------------- shared styling */
 
@@ -801,6 +804,57 @@ export function DressCodeSection() {
       <p className="font-display mx-auto mt-5 max-w-xl text-center text-[17px] leading-[1.7] text-[hsl(19_17%_30%)]">
         {t("dress.body")}
       </p>
+    </section>
+  );
+}
+
+/* ------------------------------------------------- share your memories */
+
+export function ShareMemoriesSection() {
+  const { t } = useLanguage();
+  return (
+    <section data-testid="section-share-memories">
+      <SectionHeader eyebrow={t("photos.eyebrow")} heading={t("photos.heading")} ornament />
+      <p className="font-display mx-auto mt-5 max-w-xl text-center text-[17px] leading-[1.7] text-[hsl(19_17%_30%)]">
+        {t("photos.body")}
+      </p>
+
+      <div className="mx-auto mt-8 flex max-w-lg flex-col items-center gap-6">
+        {/* QR image — clickable so laptop guests can tap through too */}
+        <a
+          href={EVENT.photoUploadUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block rounded-2xl border border-[hsl(27_44%_78%)] bg-white p-3 shadow-[0_10px_30px_-16px_hsl(19_20%_35%/.35)] transition hover:shadow-[0_14px_36px_-14px_hsl(346_37%_46%/.35)] sm:p-4"
+          data-testid="link-photo-qr"
+          aria-label={t("photos.qrAlt")}
+        >
+          <img
+            src={photoQrUrl}
+            alt={t("photos.qrAlt")}
+            className="h-auto w-64 max-w-full rounded-xl sm:w-72"
+            loading="lazy"
+            width={288}
+            height={288}
+          />
+        </a>
+
+        {/* Primary CTA — the button most guests will actually tap */}
+        <a
+          href={EVENT.photoUploadUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-full bg-[hsl(346_37%_56%)] px-6 py-3 font-display text-base font-medium text-white shadow-[0_10px_24px_-12px_hsl(346_37%_46%/.6)] transition hover:bg-[hsl(346_37%_50%)] sm:text-lg"
+          data-testid="button-photo-upload"
+        >
+          <Camera className="h-5 w-5" aria-hidden="true" />
+          {t("photos.button")}
+        </a>
+
+        <p className="text-center text-xs italic text-[hsl(19_14%_45%)] sm:text-sm">
+          {t("photos.caption")}
+        </p>
+      </div>
     </section>
   );
 }

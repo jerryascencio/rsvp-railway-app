@@ -20,6 +20,7 @@ import {
   DressCodeSection,
   GiftRegistrySection,
   HotelsSection,
+  ShareMemoriesSection,
   LanguageToggle,
   ScheduleSection,
   SectionOrnament,
@@ -1206,6 +1207,8 @@ export default function Home() {
 
       <SectionOrnament />
       <GiftRegistrySection />
+      <SectionOrnament />
+      <ShareMemoriesSection />
       <SectionOrnament />
       <AboutSection />
       <SectionOrnament />
