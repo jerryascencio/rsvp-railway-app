@@ -906,7 +906,15 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       const r = g.response;
       if (statusFilter === "attending" && !(r && r.attendees > 0)) return false;
       if (statusFilter === "declined" && !(r && r.attendees === 0)) return false;
-      if (statusFilter === "pending" && r) return false;
+      if (statusFilter === "pending") {
+        // Pending = no response yet OR partial response with unaccounted
+        // seats. Matches the Overview's Pending count so a user filtering
+        // by "Pending" sees the same households the summary is counting.
+        const leftover = r
+          ? Math.max(0, g.invites - r.attendees - r.declinedCount)
+          : g.invites;
+        if (leftover === 0) return false;
+      }
       if (!needle) return true;
       const hay = [
         g.firstName,
@@ -915,7 +923,13 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
         alsoInParty(g.additionalNames),
         g.phone,
         g.email || "",
-        r ? (r.attendees > 0 ? "attending yes" : "not attending no declined") : "pending",
+        r
+          ? r.attendees > 0
+            ? Math.max(0, g.invites - r.attendees - r.declinedCount) > 0
+              ? "attending yes partial pending unaccounted"
+              : "attending yes"
+            : "not attending no declined"
+          : "pending",
       ]
         .join(" ")
         .toLowerCase();
@@ -1303,7 +1317,10 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                   Not attending = invited seats minus attending seats, for every household
                   that has responded.
                 </li>
-                <li>Pending = all seats belonging to households that haven&rsquo;t responded.</li>
+                <li>
+                  Pending = seats not yet accounted for. Includes households that haven&rsquo;t
+                  responded and households that responded but left some seats unaccounted.
+                </li>
               </ul>
             </div>
 
@@ -1318,7 +1335,13 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                   (g.response.attendees ?? 0) === 0 &&
                   (g.response.declinedCount ?? 0) > 0,
               );
-              const pendingList = guests.filter((g) => g.response == null);
+              // Overview "Pending" mirrors the summary count: households that
+              // never responded PLUS households with unaccounted seats.
+              const pendingList = guests.filter((g) => {
+                const r = g.response;
+                if (r == null) return true;
+                return Math.max(0, g.invites - r.attendees - r.declinedCount) > 0;
+              });
 
               type G = (typeof guests)[number];
               const GuestCard = ({ g, kind }: { g: G; kind: "yes" | "no" | "pending" }) => {
@@ -1326,12 +1349,21 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                 const extras = alsoInParty(g.additionalNames);
                 const attendees = g.response?.attendees ?? 0;
                 const declined = g.response?.declinedCount ?? 0;
+                // For pending: show "invited" when they haven't responded at
+                // all, or "N of M pending" when they responded but some seats
+                // are still unaccounted — so it's obvious why they're listed.
+                const pendingSeats = Math.max(
+                  0,
+                  g.invites - attendees - declined,
+                );
                 const badge =
                   kind === "yes"
                     ? `${attendees} of ${g.invites} coming`
                     : kind === "no"
                       ? `${declined} of ${g.invites} declined`
-                      : `${g.invites} invited`;
+                      : g.response == null
+                        ? `${g.invites} invited`
+                        : `${pendingSeats} of ${g.invites} pending`;
                 const badgeClass =
                   kind === "yes"
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
