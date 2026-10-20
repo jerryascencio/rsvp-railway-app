@@ -1,4 +1,7 @@
 [phases.setup]
+# Nixpacks' built-in nodejs_20 pin is 20.18.1. Vite 7 needs Node ^20.19.
+# This archive is the nixpkgs commit that ships nodejs_20 = 20.19.1.
+nixpkgsArchive = "030d1d52856392b007cfdc8130672edff1194e97"
 nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake"]
 
 [phases.install]

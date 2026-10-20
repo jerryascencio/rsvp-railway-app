@@ -46,7 +46,6 @@ const copy = {
     exampleBody:
       "This is the public invitation families receive. The host dashboard, the guest list, and every RSVP stay private.",
     exampleOpen: "Open the live site",
-    exampleHere: "Same invitation on this service",
     exampleMeta: "Friday, September 18, 2026 · Pacoima & Panorama City",
   },
   es: {
@@ -91,7 +90,6 @@ const copy = {
     exampleBody:
       "Esta es la invitación pública que recibe la familia. El tablero, la lista de invitados y cada confirmación quedan en privado.",
     exampleOpen: "Abrir el sitio en vivo",
-    exampleHere: "La misma invitación en este servicio",
     exampleMeta: "Viernes, 18 de septiembre de 2026 · Pacoima y Panorama City",
   },
 } as const;
@@ -208,7 +206,7 @@ export default function Landing() {
               <h2 className="font-script mt-3 text-4xl leading-tight text-[hsl(346_37%_46%)] sm:text-5xl">{t.exampleTitle}</h2>
               <p className="mt-3 text-sm leading-relaxed text-[hsl(19_12%_36%)]">{t.exampleBody}</p>
               <p className="mt-3 text-xs uppercase tracking-[0.14em] text-[hsl(28_31%_42%)]">{t.exampleMeta}</p>
-              <div className="mt-6 flex flex-col gap-3">
+              <div className="mt-6">
                 <a
                   href={LEAH_LIVE}
                   target="_blank"
@@ -218,13 +216,6 @@ export default function Landing() {
                 >
                   {t.exampleOpen}
                 </a>
-                <Link
-                  href="/e/leah"
-                  className="inline-flex justify-center rounded-full border border-[hsl(346_37%_48%)] px-5 py-3 text-[12px] uppercase tracking-[0.16em] text-[hsl(346_37%_40%)]"
-                  data-testid="link-leah-platform"
-                >
-                  {t.exampleHere}
-                </Link>
               </div>
             </div>
           </div>

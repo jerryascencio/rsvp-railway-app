@@ -203,7 +203,7 @@ Use a **new service and a new volume**. Do not attach Leah's `/data` volume and 
 
 1. In Railway, create a new project or a new service in a project that does **not** auto-deploy `main` to `leahaespinoza.com`.
 2. Connect the repo and set the deploy branch to this platform branch (not `main`) until you are ready to cut over. `main` must keep deploying the current Leah service unchanged.
-3. Nixpacks, Node 20, `npm run build`, and `npm start` are already configured. Keep the service at **one replica** (SQLite).
+3. Nixpacks, Node 20.19 or newer (Vite 7 will not build on 20.18), `npm run build`, and `npm start` are already configured. Keep the service at **one replica** (SQLite).
 4. Add a volume mounted at `/data` and set `DATABASE_PATH=/data/data.db`. This is a new empty file. It must not be Leah's database.
 5. Set `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`, and the **RSVP Sites by Mission** Stripe test keys (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and optionally `STRIPE_PUBLISHABLE_KEY` plus price ids). Point that account's webhook at `https://<platform-domain>/api/stripe/webhook` for `checkout.session.completed`. Until the keys are in the service, checkout uses the local mock path.
 6. Generate a **new** public domain. Do not add `leahaespinoza.com` or `www` to this service.
