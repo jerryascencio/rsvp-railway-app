@@ -81,6 +81,7 @@ export default function Wizard() {
   const [, navigate] = useLocation();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(initialDraft);
+  const [slugTouched, setSlugTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
@@ -200,7 +201,15 @@ export default function Wizard() {
               <h1 className="font-display text-3xl">The celebration</h1>
               <label className="block text-sm">
                 Honoree
-                <input className={`${input} mt-1`} value={draft.honoree} onChange={(e) => set({ honoree: e.target.value, slug: draft.slug || slugify(e.target.value) })} data-testid="input-wizard-honoree" />
+                <input
+                  className={`${input} mt-1`}
+                  value={draft.honoree}
+                  onChange={(e) => {
+                    const honoree = e.target.value;
+                    set(slugTouched ? { honoree } : { honoree, slug: slugify(honoree) });
+                  }}
+                  data-testid="input-wizard-honoree"
+                />
               </label>
               <label className="block text-sm">
                 Partner or second name <span className="text-[hsl(19_10%_55%)]">(optional)</span>
@@ -249,7 +258,15 @@ export default function Wizard() {
                 Site link
                 <div className="mt-1 flex items-center gap-2">
                   <span className="text-sm text-[hsl(19_10%_46%)]">/e/</span>
-                  <input className={input} value={draft.slug} onChange={(e) => set({ slug: slugify(e.target.value) })} data-testid="input-wizard-slug" />
+                  <input
+                    className={input}
+                    value={draft.slug}
+                    onChange={(e) => {
+                      setSlugTouched(true);
+                      set({ slug: slugify(e.target.value) });
+                    }}
+                    data-testid="input-wizard-slug"
+                  />
                 </div>
               </label>
             </div>
