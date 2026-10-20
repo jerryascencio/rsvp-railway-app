@@ -27,7 +27,9 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import type { AdditionalName, GuestWithResponse, Totals } from "@shared/schema";
-import { api, apiUrl, setAuthToken, getAuthToken } from "@/lib/api";
+import { api, apiUrl, setAuthToken, authHeaders } from "@/lib/api";
+import { invitationPath, publicLinkLabel, setLegacyCopy, isLegacyCopy } from "@/lib/event-scope";
+import EventManage from "@/components/event-manage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +50,21 @@ type Status = {
   authenticated: boolean;
   adminEmail?: string;
   defaults: { adminEmail: string; smtpUser: string; notifyEmail: string };
+  event?: {
+    id: string;
+    slug: string;
+    honoree: string;
+    title: string;
+    dateLong: string;
+    rsvpByLabel: string;
+    rsvpClosesOn: string;
+    isLegacyRoot: boolean;
+    paid: boolean;
+    status: string;
+    package: string;
+    template: string;
+    publicPath: string;
+  } | null;
 };
 
 const APP_PASSWORDS_URL = "https://myaccount.google.com/apppasswords";
@@ -92,7 +109,7 @@ function AuthShell({
           {children}
         </div>
         <p className="mt-6 text-center text-sm">
-          <Link href="/" className="text-neutral-500 hover:text-neutral-900" data-testid="link-public">
+          <Link href={invitationPath()} className="text-neutral-500 hover:text-neutral-900" data-testid="link-public">
             ← Back to the invitation
           </Link>
         </p>
@@ -252,7 +269,14 @@ function LoginForm({ status, onDone }: { status: Status; onDone: () => void }) {
   }
 
   return (
-    <AuthShell title="Host sign-in" subtitle="Leah's Quinceañera RSVP dashboard">
+    <AuthShell
+      title="Host sign-in"
+      subtitle={
+        status.event && !status.event.isLegacyRoot
+          ? `${status.event.honoree} RSVP dashboard`
+          : "Leah's Quinceañera RSVP dashboard"
+      }
+    >
       <form onSubmit={submit} className="space-y-4">
         <Field label="Email">
           <Input
@@ -405,8 +429,8 @@ function renderTemplate(template: string, guest: GuestWithResponse): string {
     "phone": guest.phone,
     "language": (guest as any).language || "",
     "invitation sent": (guest as any).invitationSent || "",
-    "rsvp link": "www.LeahAEspinoza.com",
-    "link": "www.LeahAEspinoza.com",
+    "rsvp link": publicLinkLabel(),
+    "link": publicLinkLabel(),
     "response status": guest.response
       ? guest.response.attendees > 0
         ? "attending"
@@ -431,6 +455,16 @@ const FIELD_CHIPS = [
   "Kids",
   "Language",
 ];
+
+const GENERIC_TEMPLATES: Record<string, string> = {
+  pending:
+    "Hi {Name For Text}, here's the RSVP link for your party of {Total Invites}: {RSVP Link}. Please let us know if you can make it. Thank you!",
+  attending:
+    "Hi {Name For Text}, thank you for confirming your party of {Total Invites}. Details and updates: {RSVP Link}.",
+  declined:
+    "Hi {Name For Text}, we're sorry you can't make it. If plans change, update your RSVP at {RSVP Link}.",
+  all: "Hi {Name For Text}, here's the RSVP link for your party of {Total Invites}: {RSVP Link}.",
+};
 
 const DEFAULT_TEMPLATES: Record<string, string> = {
   pending:
@@ -469,7 +503,8 @@ function HitEmUpDialog({
   // slice should show a sensible default).
   useEffect(() => {
     if (open) {
-      setTemplate(DEFAULT_TEMPLATES[filterLabel] || DEFAULT_TEMPLATES.all);
+      const templates = isLegacyCopy() ? DEFAULT_TEMPLATES : GENERIC_TEMPLATES;
+      setTemplate(templates[filterLabel] || templates.all);
       setIndex(0);
       setStarted(false);
       setSentIds(new Set());
@@ -860,6 +895,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
   const [smtpPassSet, setSmtpPassSet] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [rsvpClosesOn, setRsvpClosesOn] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
   async function load() {
@@ -882,17 +918,19 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
   async function loadSettings() {
     try {
       const data = await api<{
-        settings: { smtpUser: string; smtpPassSet: boolean; notifyEmail: string };
+        settings: { smtpUser: string; smtpPassSet: boolean; notifyEmail: string; rsvpClosesOn?: string };
       }>("GET", "/api/admin/settings");
       setSmtpUser(data.settings.smtpUser);
       setSmtpPassSet(data.settings.smtpPassSet);
       setNotifyEmail(data.settings.notifyEmail);
+      setRsvpClosesOn(data.settings.rsvpClosesOn || "");
     } catch {
       /* ignore */
     }
   }
 
   useEffect(() => {
+    setLegacyCopy(status.event?.isLegacyRoot !== false);
     load();
     loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1175,9 +1213,8 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
 
   async function downloadCsv() {
     try {
-      const token = getAuthToken();
       const res = await fetch(apiUrl("/api/admin/guests/export"), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: authHeaders(),
         credentials: "include",
       });
       if (!res.ok) throw new Error(`Export failed (${res.status})`);
@@ -1185,7 +1222,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "leah-quinceanera-rsvps.csv";
+      a.download = status.event && !status.event.isLegacyRoot ? `${status.event.slug}-rsvps.csv` : "leah-quinceanera-rsvps.csv";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -1207,6 +1244,7 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
           smtpPass: smtpPass || undefined,
           notifyEmail,
           newPassword: newPassword || undefined,
+          rsvpClosesOn,
         },
       );
       setSmtpPass("");
@@ -1235,14 +1273,20 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <div>
             <h1 className="text-base font-semibold text-neutral-900">
-              Leah&rsquo;s Quinceañera — RSVP Dashboard
+              {status.event && !status.event.isLegacyRoot
+                ? `${status.event.honoree} — RSVP Dashboard`
+                : "Leah\u2019s Quinceañera — RSVP Dashboard"}
             </h1>
             <p className="text-xs text-neutral-500">
-              Friday, September 18, 2026 · RSVP deadline August 18, 2026
+              {status.event && !status.event.isLegacyRoot
+                ? `${status.event.dateLong || "Date not set"}${
+                    status.event.rsvpClosesOn ? ` · RSVPs close ${status.event.rsvpClosesOn}` : ""
+                  }${status.event.paid ? "" : " · unpaid draft"}`
+                : "Friday, September 18, 2026 · RSVP deadline August 18, 2026"}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/">
+            <Link href={invitationPath()}>
               <Button variant="outline" size="sm" data-testid="button-view-public">
                 <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
                 Invitation
@@ -1978,6 +2022,17 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                   data-testid="input-settings-notify-email"
                 />
               </Field>
+              <Field
+                label="RSVPs close on"
+                hint="Leave blank to keep RSVPs open. Guests can respond through this date (Pacific time). After that, the form is replaced with a closed message and the server rejects new replies."
+              >
+                <Input
+                  type="date"
+                  value={rsvpClosesOn}
+                  onChange={(e) => setRsvpClosesOn(e.target.value)}
+                  data-testid="input-rsvp-closes-on"
+                />
+              </Field>
               <div className="h-px bg-neutral-200" />
               <Field
                 label="Change admin password"
@@ -2001,6 +2056,15 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                 </Button>
               </div>
             </form>
+            {status.event && !status.event.isLegacyRoot && (
+              <EventManage
+                paid={!!status.event.paid}
+                status={status.event.status}
+                onChanged={() => {
+                  window.location.reload();
+                }}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </main>

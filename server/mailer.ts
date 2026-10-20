@@ -125,13 +125,30 @@ function plural(n: number, lang: Lang = "en") {
   return n === 1 ? s.person : s.people;
 }
 
+export type EventMail = {
+  honoree: string;
+  title: string;
+  dateLong: string;
+  ceremonyLabel: string;
+  ceremonyTime: string;
+  ceremonyVenue: string;
+  ceremonyAddress: string;
+  receptionTime: string;
+  receptionVenue: string;
+  receptionAddress: string;
+  siteUrl: string;
+};
+
 export async function sendRsvpEmails(opts: {
   settings: Settings;
   guest: Guest;
   response: RsvpResponse;
   totals: Totals;
   language?: Lang;
+  /** Present for events other than Leah's. Leah keeps the original templates. */
+  eventMail?: EventMail;
 }): Promise<{ reportSent: boolean; guestSent: boolean; error?: string }> {
+  if (opts.eventMail) return sendDynamicRsvpEmails({ ...opts, eventMail: opts.eventMail });
   const { settings, guest, response, totals } = opts;
   const lang: Lang = opts.language === "es" ? "es" : "en";
   const s = L[lang];
@@ -254,19 +271,98 @@ export async function sendRsvpEmails(opts: {
   return result;
 }
 
-export async function sendTestEmail(settings: Settings, to: string) {
+export async function sendTestEmail(settings: Settings, to: string, label?: string) {
   if (!settings.smtpUser || !settings.smtpPass) {
     throw new Error("SMTP is not configured yet.");
   }
   const tx = transport(settings);
+  const name = label || "Leah's Quinceañera RSVP";
   await tx.sendMail({
-    from: `"Leah's Quinceanera RSVP" <${settings.smtpUser}>`,
+    from: `"${name}" <${settings.smtpUser}>`,
     to,
-    subject: "Test email — Leah's Quinceañera RSVP",
-    text: `Your email settings are working.${eventDetailsText}`,
+    subject: `Test email — ${name}`,
+    text: label
+      ? "Your email settings are working."
+      : `Your email settings are working.${eventDetailsText}`,
     html: wrap(
       `<h1 style="font-size:20px;color:#B86478;margin:0 0 12px;">Your email settings are working</h1>
        <p style="margin:0;">This is a test message from the RSVP site.</p>`,
+      label ? "" : undefined,
     ),
   });
+}
+
+async function sendDynamicRsvpEmails(opts: {
+  settings: Settings;
+  guest: Guest;
+  response: RsvpResponse;
+  totals: Totals;
+  language?: Lang;
+  eventMail: EventMail;
+}): Promise<{ reportSent: boolean; guestSent: boolean; error?: string }> {
+  const { settings, guest, response, totals, eventMail: ev } = opts;
+  const lang: Lang = opts.language === "es" ? "es" : "en";
+  const result = { reportSent: false, guestSent: false, error: undefined as string | undefined };
+  if (!settings?.smtpUser || !settings.smtpPass) return result;
+  const tx = transport(settings);
+  const name = guest.fullName || `${guest.firstName} ${guest.lastName}`.trim();
+  const fromName = `${ev.honoree} RSVP`;
+  const detailsText = [
+    "",
+    ev.dateLong,
+    ev.ceremonyTime ? `${ev.ceremonyLabel}: ${ev.ceremonyTime}` : "",
+    ev.ceremonyVenue,
+    ev.ceremonyAddress,
+    "",
+    ev.receptionTime ? `Reception: ${ev.receptionTime}` : "",
+    ev.receptionVenue,
+    ev.receptionAddress,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const detailsHtml = `
+    <div style="margin-top:8px;font-family:Georgia,serif;color:#4A3B34;">
+      <div style="font-size:17px;color:#B86478;">${ev.honoree}${ev.title ? ` — ${ev.title}` : ""}</div>
+      <div style="font-size:14px;margin:4px 0 12px;">${ev.dateLong}</div>
+      ${ev.ceremonyVenue ? `<div style="font-size:14px;">${ev.ceremonyLabel} ${ev.ceremonyTime}<br/>${ev.ceremonyVenue}<br/>${ev.ceremonyAddress}</div>` : ""}
+      ${ev.receptionVenue ? `<div style="font-size:14px;margin-top:10px;">Reception ${ev.receptionTime}<br/>${ev.receptionVenue}<br/>${ev.receptionAddress}</div>` : ""}
+    </div>`;
+  try {
+    await tx.sendMail({
+      from: `"${fromName}" <${settings.smtpUser}>`,
+      to: settings.notifyEmail || settings.smtpUser,
+      subject: `RSVP update for ${ev.honoree}`,
+      text: `${name} just RSVPed — ${response.attendees} attending, ${response.declinedCount} not attending from a party of ${guest.invites}.\n\nConfirmed attending: ${totals.totalHeadcount}\nNot attending: ${totals.totalDeclined}\nPending households: ${totals.totalPendingHouseholds}`,
+      html: wrap(
+        `<h1 style="font-size:20px;color:#B86478;margin:8px 0 12px;">${name} just RSVPed</h1>
+         <p><strong>${response.attendees} attending</strong>, ${response.declinedCount} not attending, party of ${guest.invites}.</p>
+         <p>Confirmed attending: <strong>${totals.totalHeadcount}</strong><br/>Not attending: <strong>${totals.totalDeclined}</strong><br/>Pending households: <strong>${totals.totalPendingHouseholds}</strong></p>
+         ${response.note ? `<p style="font-style:italic;">“${response.note}”</p>` : ""}`,
+        "",
+      ),
+    });
+    result.reportSent = true;
+  } catch (err: any) {
+    console.warn("[mailer] failed to send report email:", err?.message || err);
+    result.error = String(err?.message || err);
+  }
+  if (response.guestEmail) {
+    const coming = response.attendees > 0;
+    const subject = lang === "es" ? `Su confirmación para ${ev.honoree}` : `Your RSVP for ${ev.honoree}`;
+    const thanks = lang === "es" ? `Gracias por confirmar, ${guest.firstName}.` : `Thank you for RSVPing, ${guest.firstName}.`;
+    try {
+      await tx.sendMail({
+        from: `"${fromName}" <${settings.smtpUser}>`,
+        to: response.guestEmail,
+        subject,
+        text: `${thanks}\n\nAttending: ${response.attendees}\nNot attending: ${response.declinedCount}\n${detailsText}\n\n${ev.siteUrl}`,
+        html: wrap(`${detailsHtml}<p>${thanks}</p><p>Attending: <strong>${response.attendees}</strong><br/>Not attending: <strong>${response.declinedCount}</strong></p><p><a href="${ev.siteUrl}">${ev.siteUrl}</a></p>`, ""),
+      });
+      result.guestSent = true;
+    } catch (err: any) {
+      console.warn("[mailer] failed to send guest confirmation:", err?.message || err);
+      result.error = result.error || String(err?.message || err);
+    }
+  }
+  return result;
 }

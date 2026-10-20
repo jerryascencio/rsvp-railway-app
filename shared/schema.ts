@@ -31,6 +31,8 @@ export const guests = sqliteTable("guests", {
   /** Unix ms of last write to this row via storage.createGuest/updateGuest.
    *  Nullable so pre-existing rows don't need backfill. */
   updatedAt: integer("updated_at"),
+  /** Owning event. Empty only for rows not yet backfilled by the boot migration. */
+  eventId: text("event_id").notNull().default(""),
 });
 
 /** One extra household member. */
@@ -99,6 +101,7 @@ export const responses = sqliteTable("responses", {
    *  the optional section. */
   placeCardNames: text("place_card_names"),
   updatedAt: integer("updated_at").notNull(),
+  eventId: text("event_id").notNull().default(""),
 });
 
 /** One row per iMessage link generated for a guest. We can't confirm iOS
@@ -109,10 +112,101 @@ export const messageLogs = sqliteTable("message_logs", {
   phone: text("phone").notNull(),
   body: text("body").notNull(),
   sentAt: integer("sent_at").notNull(),
+  eventId: text("event_id").notNull().default(""),
 });
 export type MessageLog = typeof messageLogs.$inferSelect;
 
 export const admins = sqliteTable("admins", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+});
+
+/** One row per celebration. Leah's original site is the legacy root event. */
+export const events = sqliteTable("events", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  isLegacyRoot: integer("is_legacy_root").notNull().default(0),
+  /** draft (preview only) or active (public). */
+  status: text("status").notNull().default("draft"),
+  /** basic ($100) or full_custom ($250, fulfilled by hand). */
+  package: text("package").notNull().default("basic"),
+  /** quince (floral) or wedding (elegant). */
+  template: text("template").notNull().default("quince"),
+  paid: integer("paid").notNull().default(0),
+  honoree: text("honoree").notNull().default(""),
+  partnerName: text("partner_name").notNull().default(""),
+  eventKind: text("event_kind").notNull().default("quinceanera"),
+  familyLine: text("family_line").notNull().default(""),
+  title: text("title").notNull().default(""),
+  dateIso: text("date_iso").notNull().default(""),
+  dateLong: text("date_long").notNull().default(""),
+  dateLongEs: text("date_long_es").notNull().default(""),
+  dayName: text("day_name").notNull().default(""),
+  dayNameEs: text("day_name_es").notNull().default(""),
+  day: text("day").notNull().default(""),
+  year: text("year").notNull().default(""),
+  ceremonyLabel: text("ceremony_label").notNull().default("Mass"),
+  ceremonyLabelEs: text("ceremony_label_es").notNull().default("Misa"),
+  ceremonyTime: text("ceremony_time").notNull().default(""),
+  ceremonyVenue: text("ceremony_venue").notNull().default(""),
+  ceremonyAddress: text("ceremony_address").notNull().default(""),
+  receptionTime: text("reception_time").notNull().default(""),
+  receptionVenue: text("reception_venue").notNull().default(""),
+  receptionAddress: text("reception_address").notNull().default(""),
+  rsvpByLabel: text("rsvp_by_label").notNull().default(""),
+  rsvpByLabelEs: text("rsvp_by_label_es").notNull().default(""),
+  /** YYYY-MM-DD. RSVPs are accepted through this calendar day (Pacific). Blank = open. */
+  rsvpClosesOn: text("rsvp_closes_on").notNull().default(""),
+  photoUploadUrl: text("photo_upload_url").notNull().default(""),
+  dressCode: text("dress_code").notNull().default(""),
+  dressCodeEs: text("dress_code_es").notNull().default(""),
+  giftText: text("gift_text").notNull().default(""),
+  giftTextEs: text("gift_text_es").notNull().default(""),
+  aboutText: text("about_text").notNull().default(""),
+  aboutTextEs: text("about_text_es").notNull().default(""),
+  hotelsJson: text("hotels_json").notNull().default("[]"),
+  scheduleJson: text("schedule_json").notNull().default("[]"),
+  photosJson: text("photos_json").notNull().default("[]"),
+  /** Comma-separated hostnames that should serve this event at `/`. */
+  hostnames: text("hostnames").notNull().default(""),
+  desiredDomain: text("desired_domain").notNull().default(""),
+  customDomain: integer("custom_domain").notNull().default(0),
+  customNotes: text("custom_notes").notNull().default(""),
+  smtpUser: text("smtp_user").notNull().default(""),
+  smtpPass: text("smtp_pass").notNull().default(""),
+  notifyEmail: text("notify_email").notNull().default(""),
+  stripeSessionId: text("stripe_session_id"),
+  amountCents: integer("amount_cents").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const eventHosts = sqliteTable("event_hosts", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull(),
+  email: text("email").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const orders = sqliteTable("orders", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull(),
+  package: text("package").notNull(),
+  customDomain: integer("custom_domain").notNull().default(0),
+  desiredDomain: text("desired_domain").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("usd"),
+  /** pending | paid */
+  status: text("status").notNull().default("pending"),
+  stripeSessionId: text("stripe_session_id"),
+  createdAt: integer("created_at").notNull(),
+  paidAt: integer("paid_at"),
+});
+
+export const superAdmins = sqliteTable("super_admins", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
@@ -141,6 +235,10 @@ export type RsvpResponse = typeof responses.$inferSelect;
 export type InsertResponse = typeof responses.$inferInsert;
 export type Admin = typeof admins.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
+export type EventRecord = typeof events.$inferSelect;
+export type EventHost = typeof eventHosts.$inferSelect;
+export type Order = typeof orders.$inferSelect;
+export type SuperAdmin = typeof superAdmins.$inferSelect;
 
 /** Guest joined with its response, as returned by the API. */
 export type GuestWithResponse = Guest & {

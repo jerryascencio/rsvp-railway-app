@@ -81,6 +81,14 @@ export const translations = {
       es: "Algo salió mal. Por favor intente de nuevo.",
     },
   },
+  closed: {
+    eyebrow: { en: "Kindly note", es: "Un aviso" },
+    heading: { en: "RSVPs are closed", es: "Las confirmaciones están cerradas" },
+    body: {
+      en: "Thank you for thinking of us. Responses closed on {date}. Please contact the family if you need to change a reply.",
+      es: "Gracias por pensar en nosotros. Las respuestas se cerraron el {date}. Comuníquese con la familia si necesita cambiar una respuesta.",
+    },
+  },
   household: {
     theParty: { en: "The {lastname} party", es: "La familia {lastname}" },
     possessiveParty: { en: "{name}'s party", es: "La familia de {name}" },
