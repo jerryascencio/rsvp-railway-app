@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Original blush bloom">
+  <rect width="800" height="800" fill="#f7f3ef"/>
+  <g transform="translate(400 400)">
+    <ellipse rx="70" ry="150" fill="#f3d6d0"/>
+    <ellipse rx="70" ry="150" fill="#f3d6d0" transform="rotate(60)"/>
+    <ellipse rx="70" ry="150" fill="#f3d6d0" transform="rotate(120)"/>
+    <circle r="36" fill="#1f4d3a"/>
+  </g>
+</svg>

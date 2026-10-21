@@ -5,7 +5,7 @@ import { useLanguage } from "@/lib/language";
 import "@/brand.css";
 
 const FONT_HREF =
-  "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,520;9..144,650&family=Outfit:wght@400;500;600;700&display=swap";
+  "https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Fraunces:opsz,wght@9..144,520;9..144,650&family=Fredoka:wght@500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Nunito:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap";
 
 export function useBrandFonts() {
   useEffect(() => {

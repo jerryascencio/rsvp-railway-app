@@ -1913,11 +1913,16 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                             })()}
                           </td>
                           <td className="max-w-[240px] px-4 py-3 text-neutral-600">
+                            {r?.meal ? (
+                              <div className="line-clamp-2 text-xs text-neutral-700" title={r.meal}>
+                                Meal: {r.meal}
+                              </div>
+                            ) : null}
                             {r?.note ? (
                               <span title={r.note} className="line-clamp-2">
                                 {r.note}
                               </span>
-                            ) : !placeCardNames.length ? (
+                            ) : !placeCardNames.length && !r?.meal ? (
                               <span className="text-neutral-400">—</span>
                             ) : null}
                             {placeCardNames.length > 0 && (

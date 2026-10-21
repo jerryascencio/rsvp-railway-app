@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" role="img" aria-label="Original paper flags">
+  <rect width="1200" height="675" fill="#fff8fb"/>
+  <path d="M0 80h1200" stroke="#24182a" stroke-width="3"/>
+  <g>
+    <path d="M80 80l40 70h-80z" fill="#ff5a7a"/>
+    <path d="M200 80l40 70h-80z" fill="#ffd23f"/>
+    <path d="M320 80l40 70h-80z" fill="#3d7eff"/>
+    <path d="M440 80l40 70h-80z" fill="#2fbf71"/>
+    <path d="M560 80l40 70h-80z" fill="#ff5a7a"/>
+    <path d="M680 80l40 70h-80z" fill="#ffd23f"/>
+    <path d="M800 80l40 70h-80z" fill="#3d7eff"/>
+    <path d="M920 80l40 70h-80z" fill="#2fbf71"/>
+    <path d="M1040 80l40 70h-80z" fill="#ff5a7a"/>
+  </g>
+  <circle cx="360" cy="380" r="46" fill="#ffd23f"/>
+  <circle cx="600" cy="420" r="64" fill="#3d7eff"/>
+  <circle cx="820" cy="360" r="40" fill="#2fbf71"/>
+  <rect x="500" y="300" width="36" height="36" transform="rotate(20 518 318)" fill="#ff5a7a"/>
+</svg>

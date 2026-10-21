@@ -28,7 +28,7 @@ export const RESERVED_SLUGS = new Set([
 ]);
 
 export type EventPackage = "basic" | "full_custom";
-export const EVENT_TEMPLATES = ["elegant", "fiesta", "minimal", "quince", "wedding"] as const;
+export const EVENT_TEMPLATES = ["elegant", "fiesta", "minimal", "garden", "noche", "confetti", "quince", "wedding"] as const;
 export type EventTemplate = (typeof EVENT_TEMPLATES)[number];
 
 export function normalizeTemplate(raw: unknown): EventTemplate {
@@ -36,9 +36,11 @@ export function normalizeTemplate(raw: unknown): EventTemplate {
   return (EVENT_TEMPLATES as readonly string[]).includes(value) ? (value as EventTemplate) : "elegant";
 }
 
-export type HotelStop = { name: string; address: string; note: string };
-export type ScheduleStop = { time: string; title: string; titleEs?: string; detail?: string };
-export type EventPhoto = { id: string; url: string; caption: string };
+export type HotelStop = { name: string; address: string; note: string; noteEs?: string };
+export type ScheduleStop = { time: string; title: string; titleEs?: string; detail?: string; detailEs?: string };
+export type EventPhoto = { id: string; url: string; caption: string; captionEs?: string };
+export type FaqItem = { q: string; a: string; qEs?: string; aEs?: string };
+export type PartyMember = { role: string; roleEs?: string; name: string };
 
 export type PublicEvent = {
   id: string;
@@ -54,6 +56,7 @@ export type PublicEvent = {
   partnerName: string;
   eventKind: string;
   familyLine: string;
+  familyLineEs: string;
   title: string;
   dateIso: string;
   dateLong: string;
@@ -67,9 +70,21 @@ export type PublicEvent = {
   ceremonyTime: string;
   ceremonyVenue: string;
   ceremonyAddress: string;
+  ceremonyMapUrl: string;
   receptionTime: string;
   receptionVenue: string;
   receptionAddress: string;
+  receptionMapUrl: string;
+  parkingText: string;
+  parkingTextEs: string;
+  hostNote: string;
+  hostNoteEs: string;
+  contactEmail: string;
+  contactPhone: string;
+  contactNote: string;
+  contactNoteEs: string;
+  mealPrompt: string;
+  mealPromptEs: string;
   rsvpByLabel: string;
   rsvpByLabelEs: string;
   rsvpClosesOn: string;
@@ -84,6 +99,8 @@ export type PublicEvent = {
   hotels: HotelStop[];
   schedule: ScheduleStop[];
   photos: EventPhoto[];
+  faqs: FaqItem[];
+  party: PartyMember[];
   desiredDomain: string;
   customDomain: boolean;
 };

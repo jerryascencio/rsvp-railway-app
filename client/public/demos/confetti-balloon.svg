@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Original balloons">
+  <rect width="800" height="800" fill="#fff8fb"/>
+  <ellipse cx="280" cy="300" rx="70" ry="90" fill="#ff5a7a"/>
+  <ellipse cx="400" cy="260" rx="70" ry="90" fill="#ffd23f"/>
+  <ellipse cx="520" cy="310" rx="70" ry="90" fill="#3d7eff"/>
+  <path d="M280 390c20 80-40 120 0 200M400 350c-10 90 30 140 0 240M520 400c10 70-20 120 10 190" fill="none" stroke="#24182a" stroke-width="2"/>
+</svg>

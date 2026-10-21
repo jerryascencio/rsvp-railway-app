@@ -215,7 +215,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         email: g.email,
         additionalNames: g.additionalNames,
         existing: r
-          ? { attendees: r.attendees, declinedCount: r.declinedCount, note: r.note, guestEmail: r.guestEmail }
+          ? { attendees: r.attendees, declinedCount: r.declinedCount, note: r.note, guestEmail: r.guestEmail, meal: r.meal || "" }
           : null,
       };
     });
@@ -236,7 +236,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         message: "RSVPs are closed.",
       });
     }
-    const { guestId, note } = req.body || {};
+    const { guestId, note, meal } = req.body || {};
     const guest = guestId ? storage.getGuest(String(guestId), event.id) : undefined;
     if (!guest) return res.status(404).json({ message: "Guest not found" });
 
@@ -299,6 +299,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       declinedCount,
       guestEmail,
       note: note ? String(note).trim() : null,
+      meal: meal ? String(meal).trim().slice(0, 200) : "",
       placeCardNames,
     });
 
@@ -860,6 +861,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       "pendingSeats",
       "guestEmail",
       "note",
+      "meal",
       "placeCardNames",
       "updatedAt",
     ];
@@ -881,6 +883,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           r ? 0 : g.invites,
           r?.guestEmail || "",
           r?.note || "",
+          r?.meal || "",
           // Place-card names — stored as JSON, exported as "Name 1; Name 2"
           // so it round-trips cleanly through spreadsheet tools.
           (() => {

@@ -7,7 +7,8 @@ import { useLanguage } from "@/lib/language";
 import { BrandShell, LanguageToggle, Wordmark } from "@/components/brand-shell";
 
 type Kind = "wedding" | "quinceanera" | "birthday" | "babyshower" | "anniversary" | "graduation" | "party" | "baptism" | "sweet16" | "other";
-type StarterTemplate = "elegant" | "fiesta" | "minimal";
+type StarterTemplate = "elegant" | "fiesta" | "minimal" | "garden" | "noche" | "confetti";
+const STARTER_TEMPLATES: StarterTemplate[] = ["elegant", "fiesta", "minimal", "garden", "noche", "confetti"];
 
 type Draft = {
   email: string;
@@ -45,7 +46,7 @@ function initialDraft(): Draft {
   const q = new URLSearchParams(window.location.search);
   const pkg = q.get("package") === "full_custom" ? "full_custom" : "basic";
   const requested = q.get("template");
-  const template: StarterTemplate = requested === "fiesta" || requested === "minimal" ? requested : "elegant";
+  const template: StarterTemplate = STARTER_TEMPLATES.includes(requested as StarterTemplate) ? (requested as StarterTemplate) : "elegant";
   return {
     email: "",
     password: "",
@@ -156,8 +157,15 @@ export default function Wizard() {
     }
   }
 
-  const templateName =
-    draft.template === "fiesta" ? tr("Fiesta", "Fiesta") : draft.template === "minimal" ? tr("Minimal", "Minimal") : tr("Elegant", "Elegante");
+  const templateNames: Record<StarterTemplate, string> = {
+    elegant: tr("Elegant", "Elegante"),
+    fiesta: "Fiesta",
+    minimal: "Minimal",
+    garden: tr("Garden", "Jardín"),
+    noche: "Noche",
+    confetti: "Confetti",
+  };
+  const templateName = templateNames[draft.template];
 
   return (
     <BrandShell>
@@ -215,6 +223,27 @@ export default function Wizard() {
                 title="Minimal"
                 detail={tr("Black, white, and the facts of the day.", "Negro, blanco y los datos del día.")}
                 onClick={() => set({ template: "minimal" })}
+              />
+              <TemplatePick
+                id="garden"
+                active={draft.template === "garden"}
+                title={tr("Garden", "Jardín")}
+                detail={tr("Soft greens and blush, for a wedding or shower.", "Verdes suaves y rosa, para una boda o un shower.")}
+                onClick={() => set({ template: "garden" })}
+              />
+              <TemplatePick
+                id="noche"
+                active={draft.template === "noche"}
+                title="Noche"
+                detail={tr("Black and gold, for a milestone birthday.", "Negro y dorado, para un cumpleaños importante.")}
+                onClick={() => set({ template: "noche" })}
+              />
+              <TemplatePick
+                id="confetti"
+                active={draft.template === "confetti"}
+                title="Confetti"
+                detail={tr("Bright and playful, for a kids' party.", "Brillante y juguetón, para una fiesta infantil.")}
+                onClick={() => set({ template: "confetti" })}
               />
             </div>
           )}

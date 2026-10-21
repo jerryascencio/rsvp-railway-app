@@ -69,7 +69,8 @@ function asHotels(v: unknown): HotelStop[] {
     .map((h) => ({
       name: cleanText((h as any)?.name, 120),
       address: cleanText((h as any)?.address, 200),
-      note: cleanText((h as any)?.note, 200),
+      note: cleanText((h as any)?.note, 400),
+      noteEs: cleanText((h as any)?.noteEs, 400),
     }))
     .filter((h) => h.name || h.address);
 }
@@ -77,14 +78,40 @@ function asHotels(v: unknown): HotelStop[] {
 function asSchedule(v: unknown): ScheduleStop[] {
   if (!Array.isArray(v)) return [];
   return v
-    .slice(0, 12)
+    .slice(0, 16)
     .map((s) => ({
       time: cleanText((s as any)?.time, 40),
       title: cleanText((s as any)?.title, 120),
       titleEs: cleanText((s as any)?.titleEs, 120),
       detail: cleanText((s as any)?.detail, 240),
+      detailEs: cleanText((s as any)?.detailEs, 240),
     }))
     .filter((s) => s.time || s.title);
+}
+
+function asFaqs(v: unknown) {
+  if (!Array.isArray(v)) return [];
+  return v
+    .slice(0, 8)
+    .map((item) => ({
+      q: cleanText((item as any)?.q, 200),
+      a: cleanText((item as any)?.a, 600),
+      qEs: cleanText((item as any)?.qEs, 200),
+      aEs: cleanText((item as any)?.aEs, 600),
+    }))
+    .filter((item) => item.q || item.a || item.qEs || item.aEs);
+}
+
+function asParty(v: unknown) {
+  if (!Array.isArray(v)) return [];
+  return v
+    .slice(0, 16)
+    .map((item) => ({
+      role: cleanText((item as any)?.role, 80),
+      roleEs: cleanText((item as any)?.roleEs, 80),
+      name: cleanText((item as any)?.name, 120),
+    }))
+    .filter((item) => item.name);
 }
 
 function memberEvent(req: Request): EventRecord | null {
@@ -407,14 +434,17 @@ export function registerPlatformRoutes(app: Express) {
       "honoree",
       "partnerName",
       "familyLine",
+      "familyLineEs",
       "ceremonyLabel",
       "ceremonyLabelEs",
       "ceremonyTime",
       "ceremonyVenue",
       "ceremonyAddress",
+      "ceremonyMapUrl",
       "receptionTime",
       "receptionVenue",
       "receptionAddress",
+      "receptionMapUrl",
       "rsvpByLabel",
       "rsvpByLabelEs",
       "photoUploadUrl",
@@ -424,9 +454,19 @@ export function registerPlatformRoutes(app: Express) {
       "giftTextEs",
       "aboutText",
       "aboutTextEs",
+      "parkingText",
+      "parkingTextEs",
+      "hostNote",
+      "hostNoteEs",
+      "contactEmail",
+      "contactPhone",
+      "contactNote",
+      "contactNoteEs",
+      "mealPrompt",
+      "mealPromptEs",
     ];
     for (const key of textFields) {
-      if (req.body?.[key] !== undefined) (patch as any)[key] = cleanText(req.body[key], 1200);
+      if (req.body?.[key] !== undefined) (patch as any)[key] = cleanText(req.body[key], 2000);
     }
     if (req.body?.dateIso) {
       const described = describeDate(cleanText(req.body.dateIso, 10));
@@ -444,6 +484,8 @@ export function registerPlatformRoutes(app: Express) {
     }
     if (req.body?.hotels) patch.hotelsJson = JSON.stringify(asHotels(req.body.hotels));
     if (req.body?.schedule) patch.scheduleJson = JSON.stringify(asSchedule(req.body.schedule));
+    if (req.body?.faqs) patch.faqsJson = JSON.stringify(asFaqs(req.body.faqs));
+    if (req.body?.party) patch.partyJson = JSON.stringify(asParty(req.body.party));
     if (req.body?.slug && req.body.slug !== event.slug) {
       const slug = slugify(cleanText(req.body.slug, 40));
       if (!isValidSlug(slug)) return res.status(400).json({ message: "That link isn't valid." });

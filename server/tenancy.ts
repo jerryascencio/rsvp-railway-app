@@ -5,7 +5,9 @@ import {
   parseJsonList,
   normalizeTemplate,
   rsvpIsClosed,
+  type FaqItem,
   type HotelStop,
+  type PartyMember,
   type PublicEvent,
   type ScheduleStop,
 } from "@shared/platform";
@@ -64,6 +66,11 @@ export function resolveSite(req: Request): { mode: SiteMode; slug: string | null
   return { mode: "platform", slug: null };
 }
 
+function httpsUrl(raw: string | null | undefined): string {
+  const value = String(raw || "").trim();
+  return /^https:\/\/\S+$/i.test(value) ? value : "";
+}
+
 /** Uploaded files live under /uploads. Bundled sample art is served from /demos. */
 export function publicPhotoUrl(eventId: string, filename: string): string {
   if (/^\/demos\/[a-z0-9-]+\.svg$/.test(filename)) return filename;
@@ -77,7 +84,7 @@ export function uploadRoot(): string {
 }
 
 export function toPublicEvent(event: EventRecord): PublicEvent {
-  const photos = parseJsonList<{ id: string; filename: string; caption?: string }>(event.photosJson);
+  const photos = parseJsonList<{ id: string; filename: string; caption?: string; captionEs?: string }>(event.photosJson);
   return {
     id: event.id,
     slug: event.slug,
@@ -91,6 +98,7 @@ export function toPublicEvent(event: EventRecord): PublicEvent {
     partnerName: event.partnerName,
     eventKind: event.eventKind,
     familyLine: event.familyLine,
+    familyLineEs: event.familyLineEs || "",
     title: event.title,
     dateIso: event.dateIso,
     dateLong: event.dateLong,
@@ -104,9 +112,21 @@ export function toPublicEvent(event: EventRecord): PublicEvent {
     ceremonyTime: event.ceremonyTime,
     ceremonyVenue: event.ceremonyVenue,
     ceremonyAddress: event.ceremonyAddress,
+    ceremonyMapUrl: httpsUrl(event.ceremonyMapUrl),
     receptionTime: event.receptionTime,
     receptionVenue: event.receptionVenue,
     receptionAddress: event.receptionAddress,
+    receptionMapUrl: httpsUrl(event.receptionMapUrl),
+    parkingText: event.parkingText || "",
+    parkingTextEs: event.parkingTextEs || "",
+    hostNote: event.hostNote || "",
+    hostNoteEs: event.hostNoteEs || "",
+    contactEmail: event.contactEmail || "",
+    contactPhone: event.contactPhone || "",
+    contactNote: event.contactNote || "",
+    contactNoteEs: event.contactNoteEs || "",
+    mealPrompt: event.mealPrompt || "",
+    mealPromptEs: event.mealPromptEs || "",
     rsvpByLabel: event.rsvpByLabel,
     rsvpByLabelEs: event.rsvpByLabelEs,
     rsvpClosesOn: event.rsvpClosesOn || "",
@@ -126,7 +146,10 @@ export function toPublicEvent(event: EventRecord): PublicEvent {
         id: p.id,
         url: publicPhotoUrl(event.id, p.filename),
         caption: p.caption || "",
+        captionEs: p.captionEs || "",
       })),
+    faqs: parseJsonList<FaqItem>(event.faqsJson).filter((item) => item && (item.q || item.a)).slice(0, 8),
+    party: parseJsonList<PartyMember>(event.partyJson).filter((item) => item && item.name).slice(0, 16),
     desiredDomain: event.desiredDomain || "",
     customDomain: !!event.customDomain,
   };

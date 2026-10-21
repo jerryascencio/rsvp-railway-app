@@ -186,6 +186,22 @@ for (const stmt of [
     password_hash TEXT NOT NULL
   )`,
   `ALTER TABLE events ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0`,
+  `ALTER TABLE events ADD COLUMN family_line_es TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN ceremony_map_url TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN reception_map_url TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN parking_text TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN parking_text_es TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN host_note TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN host_note_es TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN contact_email TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN contact_phone TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN contact_note TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN contact_note_es TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN meal_prompt TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN meal_prompt_es TEXT NOT NULL DEFAULT ''`,
+  `ALTER TABLE events ADD COLUMN faqs_json TEXT NOT NULL DEFAULT '[]'`,
+  `ALTER TABLE events ADD COLUMN party_json TEXT NOT NULL DEFAULT '[]'`,
+  `ALTER TABLE responses ADD COLUMN meal TEXT NOT NULL DEFAULT ''`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON events (slug)`,
   `CREATE INDEX IF NOT EXISTS idx_guests_event ON guests (event_id)`,
   `CREATE INDEX IF NOT EXISTS idx_responses_event ON responses (event_id)`,
@@ -566,6 +582,7 @@ export class Storage {
     guestEmail?: string | null;
     note?: string | null;
     placeCardNames?: string[] | null;
+    meal?: string | null;
   }): RsvpResponse {
     const existing = this.getResponseByGuest(input.guestId);
     const eventId = this.getGuest(input.guestId)?.eventId || existing?.eventId || "";
@@ -584,6 +601,7 @@ export class Storage {
       note: input.note || null,
       placeCardNames:
         cleanedNames && anyNonEmpty ? JSON.stringify(cleanedNames) : null,
+      meal: input.meal !== undefined ? (input.meal || "").trim() : existing?.meal || "",
       updatedAt: Date.now(),
       eventId,
     };

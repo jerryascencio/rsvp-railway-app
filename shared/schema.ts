@@ -100,6 +100,8 @@ export const responses = sqliteTable("responses", {
    *  strings, length matches `attendees`. Nullable when the guest skipped
    *  the optional section. */
   placeCardNames: text("place_card_names"),
+  /** Meal or dietary answer from the public form. Blank when the event does not ask. */
+  meal: text("meal").notNull().default(""),
   updatedAt: integer("updated_at").notNull(),
   eventId: text("event_id").notNull().default(""),
 });
@@ -167,9 +169,24 @@ export const events = sqliteTable("events", {
   giftTextEs: text("gift_text_es").notNull().default(""),
   aboutText: text("about_text").notNull().default(""),
   aboutTextEs: text("about_text_es").notNull().default(""),
+  familyLineEs: text("family_line_es").notNull().default(""),
+  ceremonyMapUrl: text("ceremony_map_url").notNull().default(""),
+  receptionMapUrl: text("reception_map_url").notNull().default(""),
+  parkingText: text("parking_text").notNull().default(""),
+  parkingTextEs: text("parking_text_es").notNull().default(""),
+  hostNote: text("host_note").notNull().default(""),
+  hostNoteEs: text("host_note_es").notNull().default(""),
+  contactEmail: text("contact_email").notNull().default(""),
+  contactPhone: text("contact_phone").notNull().default(""),
+  contactNote: text("contact_note").notNull().default(""),
+  contactNoteEs: text("contact_note_es").notNull().default(""),
+  mealPrompt: text("meal_prompt").notNull().default(""),
+  mealPromptEs: text("meal_prompt_es").notNull().default(""),
   hotelsJson: text("hotels_json").notNull().default("[]"),
   scheduleJson: text("schedule_json").notNull().default("[]"),
   photosJson: text("photos_json").notNull().default("[]"),
+  faqsJson: text("faqs_json").notNull().default("[]"),
+  partyJson: text("party_json").notNull().default("[]"),
   /** Comma-separated hostnames that should serve this event at `/`. */
   hostnames: text("hostnames").notNull().default(""),
   desiredDomain: text("desired_domain").notNull().default(""),

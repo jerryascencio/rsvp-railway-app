@@ -16,7 +16,7 @@ const copy = {
     events: ["Weddings", "Quinceañeras", "Birthdays", "Baby showers", "Anniversaries", "Graduations", "Parties"],
     how: "How it works",
     steps: [
-      { n: "01", t: "Pick a template", d: "Elegant, Fiesta, or Minimal. The words and photos are yours." },
+      { n: "01", t: "Pick a template", d: "Six looks, from quiet type to confetti. The words and photos are yours." },
       { n: "02", t: "Upload your guest list", d: "The same spreadsheet you already keep. Names, phones, and how many seats." },
       { n: "03", t: "Share your link", d: "Guests search for their name. No accounts, no app to install." },
       { n: "04", t: "Track RSVPs", d: "See who's coming, who's pending, and close responses when the day is set." },
@@ -29,7 +29,7 @@ const copy = {
       { t: "Close RSVPs", d: "Pick a last day. After that, the form stops and guests see a closed message." },
       { t: "Custom domain", d: "Add your family's name in the address. We register it for a year and connect it." },
     ],
-    templates: "Three templates",
+    templates: "Six templates",
     templatesLede: "A starting point for any celebration, not a single kind of party.",
     elegant: "Elegant",
     elegantD: "Quiet type, a warm paper ground, and room for a long name.",
@@ -41,10 +41,19 @@ const copy = {
     elegantWhen: "June 12, 2027",
     fiestaWhen: "August 21, 2027",
     minimalWhen: "March 20, 2027",
+    garden: "Garden",
+    gardenD: "Blush, leaf green, and a wedding that feels like a garden.",
+    gardenWhen: "May 15, 2027",
+    noche: "Noche",
+    nocheD: "Black and gold for a birthday after dark.",
+    nocheWhen: "November 6, 2027",
+    confetti: "Confetti",
+    confettiD: "Bright color for a kids' party or a baptism.",
+    confettiWhen: "April 10, 2027",
     basic: "Basic",
     basicPrice: "$100",
     basicNote: "per event",
-    basicPoints: ["Invitation page and host dashboard", "Any of the three templates", "English and Spanish", "Guest list upload and photos"],
+    basicPoints: ["Invitation page and host dashboard", "Any of the six templates", "English and Spanish", "Guest list upload and photos"],
     domain: "Custom domain",
     domainPrice: "+$25",
     domainNote: "per year",
@@ -79,7 +88,7 @@ const copy = {
     events: ["Bodas", "Quinceañeras", "Cumpleaños", "Baby showers", "Aniversarios", "Graduaciones", "Fiestas"],
     how: "Cómo funciona",
     steps: [
-      { n: "01", t: "Elija una plantilla", d: "Elegante, Fiesta o Minimal. Las palabras y las fotos son suyas." },
+      { n: "01", t: "Elija una plantilla", d: "Seis estilos, del tipo sereno al confeti. Las palabras y las fotos son suyas." },
       { n: "02", t: "Suba su lista", d: "La misma hoja que ya usa. Nombres, teléfonos y cuántos lugares." },
       { n: "03", t: "Comparta su enlace", d: "Los invitados buscan su nombre. Sin cuentas y sin instalar una app." },
       { n: "04", t: "Siga las confirmaciones", d: "Vea quién viene, quién falta, y cierre las respuestas cuando la fecha esté fija." },
@@ -92,7 +101,7 @@ const copy = {
       { t: "Cerrar confirmaciones", d: "Elija el último día. Después, el formulario se detiene y se muestra un aviso." },
       { t: "Dominio propio", d: "El nombre de su familia en la dirección. Lo registramos por un año y lo conectamos." },
     ],
-    templates: "Tres plantillas",
+    templates: "Seis plantillas",
     templatesLede: "Un punto de partida para cualquier celebración, no para un solo tipo de fiesta.",
     elegant: "Elegante",
     elegantD: "Tipografía serena, papel cálido y espacio para un nombre largo.",
@@ -104,10 +113,19 @@ const copy = {
     elegantWhen: "12 de junio de 2027",
     fiestaWhen: "21 de agosto de 2027",
     minimalWhen: "20 de marzo de 2027",
+    garden: "Jardín",
+    gardenD: "Rosa y verde hoja, para una boda o un shower.",
+    gardenWhen: "15 de mayo de 2027",
+    noche: "Noche",
+    nocheD: "Negro y dorado para un cumpleaños de noche.",
+    nocheWhen: "6 de noviembre de 2027",
+    confetti: "Confetti",
+    confettiD: "Color vivo para una fiesta infantil o un bautizo.",
+    confettiWhen: "10 de abril de 2027",
     basic: "Básico",
     basicPrice: "$100",
     basicNote: "por evento",
-    basicPoints: ["Invitación y tablero de anfitrión", "Cualquiera de las tres plantillas", "Inglés y español", "Lista de invitados y fotos"],
+    basicPoints: ["Invitación y tablero de anfitrión", "Cualquiera de las seis plantillas", "Inglés y español", "Lista de invitados y fotos"],
     domain: "Dominio propio",
     domainPrice: "+$25",
     domainNote: "por año",
@@ -255,6 +273,39 @@ export default function Landing() {
               sampleWhen={t.minimalWhen}
               sampleClass="bg-white text-[#111]"
               bar="bg-[#111]"
+            />
+            <TemplatePreview
+              href="/e/demo-garden"
+              testId="link-sample-garden"
+              name={t.garden}
+              body={t.gardenD}
+              view={t.viewSample}
+              sampleName="Maya & Andres"
+              sampleWhen={t.gardenWhen}
+              sampleClass="bg-[#f4f7f2] text-[#1f4d3a]"
+              bar="bg-[#1f4d3a]"
+            />
+            <TemplatePreview
+              href="/e/demo-noche"
+              testId="link-sample-noche"
+              name={t.noche}
+              body={t.nocheD}
+              view={t.viewSample}
+              sampleName="Valentina Cruz"
+              sampleWhen={t.nocheWhen}
+              sampleClass="bg-[#14110e] text-[#f4efe4]"
+              bar="bg-[#d4b483]"
+            />
+            <TemplatePreview
+              href="/e/demo-confetti"
+              testId="link-sample-confetti"
+              name={t.confetti}
+              body={t.confettiD}
+              view={t.viewSample}
+              sampleName="Leo Ramos"
+              sampleWhen={t.confettiWhen}
+              sampleClass="bg-[#fff8fb] text-[#ff5a7a]"
+              bar="bg-gradient-to-r from-[#ff5a7a] via-[#ffd23f] to-[#3d7eff]"
             />
           </div>
         </section>

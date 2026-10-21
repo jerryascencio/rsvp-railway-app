@@ -15,7 +15,7 @@ type Match = {
   fullName: string;
   partyName?: string;
   invites: number;
-  existing: { attendees: number; declinedCount: number } | null;
+  existing: { attendees: number; declinedCount: number; meal?: string } | null;
 };
 
 export default function EventSite({ slug }: { slug: string }) {
@@ -75,7 +75,7 @@ export default function EventSite({ slug }: { slug: string }) {
     <div
       className={
         wedding
-          ? `invite-theme-${theme} min-h-screen text-[#1c1917]`
+          ? `invite-theme-${theme} min-h-screen`
           : "invite-page relative min-h-screen overflow-hidden text-foreground"
       }
       data-testid="page-event"
@@ -91,7 +91,7 @@ export default function EventSite({ slug }: { slug: string }) {
           <button
             type="button"
             onClick={() => setLang((l) => (l === "en" ? "es" : "en"))}
-            className="rounded-full border border-black/10 bg-white/80 px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
+            className="invite-lang rounded-full border border-black/10 bg-white/80 px-3 py-1 text-[11px] uppercase tracking-[0.16em]"
             data-testid="button-event-language"
           >
             {lang === "en" ? "Español" : "English"}
@@ -129,7 +129,7 @@ export default function EventSite({ slug }: { slug: string }) {
             <p className="label-caps">{pick("You are invited", "Están invitados")}</p>
           )}
           <p className={`mt-4 text-sm italic ${wedding ? "font-serif" : "font-display"}`}>
-            {event.familyLine || pick("to celebrate", "a celebrar")}
+            {pick(event.familyLine, event.familyLineEs) || pick("to celebrate", "a celebrar")}
           </p>
           <h1
             className={
@@ -156,6 +156,8 @@ export default function EventSite({ slug }: { slug: string }) {
               time={event.ceremonyTime}
               name={event.ceremonyVenue}
               address={event.ceremonyAddress}
+              mapUrl={event.ceremonyMapUrl}
+              mapLabel={pick("Map", "Mapa")}
             />
             <Venue
               wedding={wedding}
@@ -163,6 +165,8 @@ export default function EventSite({ slug }: { slug: string }) {
               time={event.receptionTime}
               name={event.receptionVenue}
               address={event.receptionAddress}
+              mapUrl={event.receptionMapUrl}
+              mapLabel={pick("Map", "Mapa")}
             />
           </div>
         </header>
@@ -180,47 +184,89 @@ export default function EventSite({ slug }: { slug: string }) {
             </p>
           </section>
         ) : (
-          <RsvpCard wedding={wedding} es={es} />
+          <RsvpCard wedding={wedding} es={es} mealPrompt={pick(event.mealPrompt, event.mealPromptEs)} />
         )}
 
-        {event.aboutText && (
-          <Section wedding={wedding} title={pick("A note", "Una nota")}>
+        {(event.rsvpByLabel || event.rsvpClosesOn) && (
+          <p className="mt-4 text-center text-sm" data-testid="text-rsvp-deadline">
+            {pick("Please reply by", "Responda antes del")}{" "}
+            {pick(event.rsvpByLabel, event.rsvpByLabelEs) || event.rsvpClosesOn}
+          </p>
+        )}
+
+        {(event.aboutText || event.aboutTextEs) && (
+          <Section wedding={wedding} title={pick("Welcome", "Bienvenida")} testId="section-story">
             {pick(event.aboutText, event.aboutTextEs)}
           </Section>
         )}
+        {(event.hostNote || event.hostNoteEs) && (
+          <Section wedding={wedding} title={pick("From the hosts", "De los anfitriones")} testId="section-hosts">
+            {pick(event.hostNote, event.hostNoteEs)}
+          </Section>
+        )}
         {event.schedule.length > 0 && (
-          <Section wedding={wedding} title={pick("The day", "El día")}>
+          <Section wedding={wedding} title={pick("The day", "El día")} testId="section-schedule">
             <ul className="space-y-3 text-left">
               {event.schedule.map((item, i) => (
                 <li key={i}>
                   <span className="text-[11px] uppercase tracking-[0.16em] opacity-70">{item.time}</span>
                   <div>{pick(item.title, item.titleEs || "")}</div>
-                  {item.detail && <div className="text-sm opacity-70">{item.detail}</div>}
+                  {(item.detail || item.detailEs) && <div className="text-sm opacity-70">{pick(item.detail || "", item.detailEs || "")}</div>}
                 </li>
               ))}
             </ul>
           </Section>
         )}
         {(event.dressCode || event.dressCodeEs) && (
-          <Section wedding={wedding} title={pick("Dress code", "Vestimenta")}>
+          <Section wedding={wedding} title={pick("Dress code", "Vestimenta")} testId="section-dress">
             {pick(event.dressCode, event.dressCodeEs)}
           </Section>
         )}
+        {(event.parkingText || event.parkingTextEs) && (
+          <Section wedding={wedding} title={pick("Parking and directions", "Estacionamiento y cómo llegar")} testId="section-parking">
+            {pick(event.parkingText, event.parkingTextEs)}
+          </Section>
+        )}
+        {event.party.length > 0 && (
+          <Section wedding={wedding} title={partyTitle(event.eventKind, es)} testId="section-party">
+            <ul className="space-y-3 text-left">
+              {event.party.map((person, i) => (
+                <li key={i}>
+                  <div className="text-[11px] uppercase tracking-[0.16em] opacity-70">{pick(person.role, person.roleEs || "")}</div>
+                  <div>{person.name}</div>
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
         {event.hotels.length > 0 && (
-          <Section wedding={wedding} title={pick("Where to stay", "Dónde hospedarse")}>
+          <Section wedding={wedding} title={pick("Where to stay", "Dónde hospedarse")} testId="section-stay">
             <ul className="space-y-3 text-left">
               {event.hotels.map((h, i) => (
                 <li key={i}>
                   <div>{h.name}</div>
                   <div className="text-sm opacity-70">{h.address}</div>
+                  {(h.note || h.noteEs) && <div className="text-sm">{pick(h.note, h.noteEs || "")}</div>}
                 </li>
               ))}
             </ul>
           </Section>
         )}
         {(event.giftText || event.giftTextEs) && (
-          <Section wedding={wedding} title={pick("Gifts", "Regalos")}>
+          <Section wedding={wedding} title={pick("Gifts", "Regalos")} testId="section-gifts">
             {pick(event.giftText, event.giftTextEs)}
+          </Section>
+        )}
+        {event.faqs.length > 0 && (
+          <Section wedding={wedding} title={pick("Questions", "Preguntas")} testId="section-faq">
+            <div className="space-y-4 text-left">
+              {event.faqs.map((item, i) => (
+                <div key={i}>
+                  <div className="font-medium">{pick(item.q, item.qEs || "")}</div>
+                  <div className="mt-1 opacity-80">{pick(item.a, item.aEs || "")}</div>
+                </div>
+              ))}
+            </div>
           </Section>
         )}
         {event.photoUploadUrl && (
@@ -231,13 +277,34 @@ export default function EventSite({ slug }: { slug: string }) {
           </Section>
         )}
         {event.photos.length > 1 && (
-          <section className="mt-8 grid grid-cols-2 gap-2">
-            {event.photos.slice(1).map((p) => (
-              <figure key={p.id} className="overflow-hidden rounded-xl bg-white">
-                <img src={p.url} alt={p.caption || ""} className="aspect-square w-full object-cover" />
-              </figure>
-            ))}
+          <section className="mt-8" data-testid="section-gallery">
+            <h2 className={`mb-3 text-center ${wedding ? "font-serif text-2xl" : "font-script text-4xl"}`}>
+              {pick("Gallery", "Galería")}
+            </h2>
+            <div className="grid grid-cols-2 gap-2">
+              {event.photos.slice(1).map((p) => (
+                <figure key={p.id} className="invite-card overflow-hidden rounded-xl">
+                  <img src={p.url} alt={pick(p.caption, p.captionEs || "")} className="aspect-square w-full object-cover" />
+                  {(p.caption || p.captionEs) && (
+                    <figcaption className="px-2 py-2 text-center text-xs">{pick(p.caption, p.captionEs || "")}</figcaption>
+                  )}
+                </figure>
+              ))}
+            </div>
           </section>
+        )}
+        {(event.contactEmail || event.contactPhone || event.contactNote || event.contactNoteEs) && (
+          <Section wedding={wedding} title={pick("Contact", "Contacto")} testId="section-contact">
+            {pick(event.contactNote, event.contactNoteEs)}
+            <div className="mt-3 space-y-1">
+              {event.contactEmail && (
+                <a className="block underline" href={`mailto:${event.contactEmail}`}>{event.contactEmail}</a>
+              )}
+              {event.contactPhone && (
+                <a className="block underline" href={`tel:${event.contactPhone.replace(/[^\d+]/g, "")}`}>{event.contactPhone}</a>
+              )}
+            </div>
+          </Section>
         )}
 
         <footer className="mt-14 text-center text-sm">
@@ -254,6 +321,8 @@ const TITLE_ES: Record<string, string> = {
   Wedding: "Boda",
   Quinceañera: "Quinceañera",
   "Baby shower": "Baby shower",
+  "40th birthday": "Cumpleaños 40",
+  "7th birthday": "Cumpleaños 7",
   Birthday: "Cumpleaños",
   Anniversary: "Aniversario",
   Graduation: "Graduación",
@@ -264,7 +333,14 @@ function inviteLine(kind: string, es: boolean): string {
   if (kind === "wedding") return es ? "Junto con sus familias" : "Together with their families";
   if (kind === "babyshower") return es ? "Acompáñenos" : "Please join us";
   if (kind === "graduation") return es ? "Acompáñenos a celebrar" : "Come celebrate";
+  if (kind === "birthday") return es ? "Celebre con nosotros" : "Celebrate with us";
   return es ? "Están invitados" : "You are invited";
+}
+
+function partyTitle(kind: string, es: boolean): string {
+  if (kind === "quinceanera") return es ? "Corte y padrinos" : "Court and padrinos";
+  if (kind === "wedding") return es ? "Cortejo" : "Wedding party";
+  return es ? "Quienes acompañan" : "With them";
 }
 
 function Venue({
@@ -273,36 +349,55 @@ function Venue({
   time,
   name,
   address,
+  mapUrl,
+  mapLabel,
 }: {
   wedding: boolean;
   label: string;
   time: string;
   name: string;
   address: string;
+  mapUrl?: string;
+  mapLabel?: string;
 }) {
   if (!name && !time) return null;
   return (
-    <div className={wedding ? "border border-[#e6dfd4] bg-white/70 px-4 py-4" : "ivory-card rounded-xl px-4 py-4"}>
-      <div className="text-[11px] uppercase tracking-[0.16em] text-[#8a7350]">
+    <div className={wedding ? "invite-card px-4 py-4" : "ivory-card rounded-xl px-4 py-4"}>
+      <div className="invite-kicker text-[11px] uppercase tracking-[0.16em]">
         {label}
         {time ? ` · ${time}` : ""}
       </div>
       <div className="mt-1">{name}</div>
       <div className="text-sm opacity-70">{address}</div>
+      {mapUrl && (
+        <a className="mt-2 inline-block text-sm underline" href={mapUrl} target="_blank" rel="noreferrer">
+          {mapLabel || "Map"}
+        </a>
+      )}
     </div>
   );
 }
 
-function Section({ wedding, title, children }: { wedding: boolean; title: string; children: React.ReactNode }) {
+function Section({
+  wedding,
+  title,
+  children,
+  testId,
+}: {
+  wedding: boolean;
+  title: string;
+  children: React.ReactNode;
+  testId?: string;
+}) {
   return (
-    <section className={`mt-8 px-6 py-7 text-center ${wedding ? "border border-[#e6dfd4] bg-white" : "ivory-card rounded-xl"}`}>
+    <section className={`mt-8 px-6 py-7 text-center ${wedding ? "invite-card" : "ivory-card rounded-xl"}`} data-testid={testId}>
       <h2 className={wedding ? "font-serif text-2xl" : "font-script text-4xl text-[hsl(346_37%_50%)]"}>{title}</h2>
       <div className="mt-3 text-sm leading-relaxed">{children}</div>
     </section>
   );
 }
 
-function RsvpCard({ wedding, es }: { wedding: boolean; es: boolean }) {
+function RsvpCard({ wedding, es, mealPrompt }: { wedding: boolean; es: boolean; mealPrompt: string }) {
   const [query, setQuery] = useState("");
   const [matches, setMatches] = useState<Match[]>([]);
   const [searched, setSearched] = useState(false);
@@ -311,6 +406,7 @@ function RsvpCard({ wedding, es }: { wedding: boolean; es: boolean }) {
   const [declined, setDeclined] = useState(0);
   const [email, setEmail] = useState("");
   const [note, setNote] = useState("");
+  const [meal, setMeal] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -337,6 +433,7 @@ function RsvpCard({ wedding, es }: { wedding: boolean; es: boolean }) {
     const a = m.existing ? m.existing.attendees : m.invites;
     setAttending(a);
     setDeclined(m.existing ? m.existing.declinedCount : m.invites - a);
+    setMeal(m.existing?.meal || "");
   }
 
   async function submit(e: React.FormEvent) {
@@ -351,6 +448,7 @@ function RsvpCard({ wedding, es }: { wedding: boolean; es: boolean }) {
         declinedCount: declined,
         guestEmail: email.trim() || null,
         note: note.trim() || null,
+        meal: meal.trim() || "",
         language: es ? "es" : "en",
       });
       setDone(guest.firstName || guest.partyName || "");
@@ -362,7 +460,7 @@ function RsvpCard({ wedding, es }: { wedding: boolean; es: boolean }) {
   }
 
   return (
-    <section className={`mt-10 px-5 py-7 ${wedding ? "border border-[#e6dfd4] bg-white" : "ivory-card rounded-xl"}`} data-testid="card-search">
+    <section className={`mt-10 px-5 py-7 ${wedding ? "invite-card" : "ivory-card rounded-xl"}`} data-testid="card-search">
       {done ? (
         <div className="text-center" data-testid="section-confirmation">
           <h2 className={wedding ? "font-serif text-4xl" : "font-script text-5xl text-[hsl(346_37%_50%)]"}>
@@ -386,7 +484,7 @@ function RsvpCard({ wedding, es }: { wedding: boolean; es: boolean }) {
                 data-testid="input-search"
               />
             </div>
-            <button type="submit" className="w-full rounded-full bg-[hsl(346_30%_28%)] py-3 text-[12px] uppercase tracking-[0.16em] text-white disabled:opacity-50" disabled={busy || !query.trim()} data-testid="button-search">
+            <button type="submit" className={`w-full rounded-full py-3 text-[12px] uppercase tracking-[0.16em] text-white disabled:opacity-50 ${wedding ? "invite-btn" : "bg-[hsl(346_30%_28%)]"}`} disabled={busy || !query.trim()} data-testid="button-search">
               {busy ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : t("Find my invitation", "Buscar")}
             </button>
           </form>
@@ -416,8 +514,14 @@ function RsvpCard({ wedding, es }: { wedding: boolean; es: boolean }) {
               <Stepper label={t("Attending", "Asistirán")} value={attending} max={guest.invites} onChange={(v) => { setAttending(v); setDeclined(guest.invites - v); }} testId="attending" />
               <Stepper label={t("Not attending", "No asistirán")} value={declined} max={guest.invites} onChange={setDeclined} testId="declined" />
               <input className="w-full rounded-md border border-black/10 px-3 py-3" placeholder={t("Email for a confirmation (optional)", "Correo para confirmación (opcional)")} value={email} onChange={(e) => setEmail(e.target.value)} data-testid="input-guest-email" />
+              {mealPrompt && (
+                <label className="block text-left text-sm">
+                  {mealPrompt}
+                  <input className="mt-1 w-full rounded-md border border-black/10 px-3 py-3" value={meal} onChange={(e) => setMeal(e.target.value)} data-testid="input-meal" />
+                </label>
+              )}
               <textarea className="w-full rounded-md border border-black/10 px-3 py-3" rows={3} placeholder={t("A note", "Un mensaje")} value={note} onChange={(e) => setNote(e.target.value)} data-testid="input-note" />
-              <button type="submit" className="w-full rounded-full bg-[hsl(346_37%_46%)] py-3 text-[12px] uppercase tracking-[0.16em] text-white disabled:opacity-50" disabled={busy || attending + declined !== guest.invites} data-testid="button-submit-rsvp">
+              <button type="submit" className={`w-full rounded-full py-3 text-[12px] uppercase tracking-[0.16em] text-white disabled:opacity-50 ${wedding ? "invite-btn" : "bg-[hsl(346_37%_46%)]"}`} disabled={busy || attending + declined !== guest.invites} data-testid="button-submit-rsvp">
                 {t("Send my RSVP", "Enviar")}
               </button>
             </form>
