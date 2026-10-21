@@ -17,6 +17,7 @@ type Row = {
   customNotes: string;
   createdAt: number;
   isLegacyRoot: boolean;
+  isDemo?: boolean;
   hostEmail: string;
   households: number;
   invited: number;
@@ -27,15 +28,20 @@ export default function SuperAdmin() {
   const [password, setPassword] = useState("");
   const [authed, setAuthed] = useState(false);
   const [rows, setRows] = useState<Row[]>([]);
+  const [totals, setTotals] = useState({ events: 0, revenueCents: 0, invited: 0 });
   const [error, setError] = useState<string | null>(null);
   const [hostEdit, setHostEdit] = useState<Record<string, string>>({});
 
-  async function load() {
-    const data = await api<{ events: Row[] }>("GET", "/api/super/events");
+  function applyList(data: { events: Row[]; totals?: { events: number; revenueCents: number; invited: number } }) {
     setRows(data.events);
+    if (data.totals) setTotals(data.totals);
     const edits: Record<string, string> = {};
     for (const row of data.events) edits[row.id] = row.hostnames;
     setHostEdit(edits);
+  }
+
+  async function load() {
+    applyList(await api("GET", "/api/super/events"));
   }
 
   useEffect(() => {
@@ -46,11 +52,8 @@ export default function SuperAdmin() {
       /* ignore */
     }
     api("GET", "/api/super/events")
-      .then((data: { events: Row[] }) => {
-        setRows(data.events);
-        const edits: Record<string, string> = {};
-        for (const row of data.events) edits[row.id] = row.hostnames;
-        setHostEdit(edits);
+      .then((data: { events: Row[]; totals?: { events: number; revenueCents: number; invited: number } }) => {
+        applyList(data);
         setAuthed(true);
       })
       .catch(() => {
@@ -108,7 +111,10 @@ export default function SuperAdmin() {
     <div className="min-h-screen bg-neutral-50 px-4 py-6" data-testid="page-super">
       <div className="mx-auto max-w-6xl">
         <h1 className="text-xl font-semibold">Events</h1>
-        <p className="text-sm text-neutral-500">{rows.length} on this service</p>
+        <p className="text-sm text-neutral-500" data-testid="text-super-totals">
+          {totals.events} events · ${(totals.revenueCents / 100).toFixed(0)} collected · {totals.invited} invited.
+          Sample sites are excluded from these totals.
+        </p>
         <div className="mt-4 overflow-x-auto rounded-xl border bg-white">
           <table className="min-w-[880px] w-full text-left text-sm">
             <thead className="border-b text-xs uppercase tracking-wide text-neutral-500">
@@ -131,13 +137,14 @@ export default function SuperAdmin() {
                       /e/{row.slug}
                     </a>
                     {row.isLegacyRoot && <div className="text-xs text-neutral-400">Original site</div>}
+                    {row.isDemo && <div className="text-xs text-neutral-400">Sample</div>}
                   </td>
                   <td className="px-3 py-3 text-xs">{row.hostEmail || "—"}</td>
                   <td className="px-3 py-3">
                     <div>{row.package === "full_custom" ? "Full custom" : "Basic"}</div>
-                    <div className="text-xs text-neutral-500">${(row.amountCents / 100).toFixed(0)} · {row.template}</div>
+                    <div className="text-xs text-neutral-500">{row.isDemo ? "Sample" : `$${(row.amountCents / 100).toFixed(0)}`} · {row.template}</div>
                   </td>
-                  <td className="px-3 py-3">{row.paid ? "Paid" : "Unpaid"}</td>
+                  <td className="px-3 py-3">{row.isDemo ? "Sample" : row.paid ? "Paid" : "Unpaid"}</td>
                   <td className="px-3 py-3">{row.status}</td>
                   <td className="px-3 py-3">
                     {row.customDomain && (

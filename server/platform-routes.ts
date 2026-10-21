@@ -525,17 +525,26 @@ export function registerPlatformRoutes(app: Express) {
         customNotes: event.customNotes,
         createdAt: event.createdAt,
         isLegacyRoot: !!event.isLegacyRoot,
+        isDemo: !!event.isDemo,
         hostEmail: host?.email || "",
         households: totals.totalHouseholds,
         invited: totals.totalInvited,
       };
     });
+    const billable = rows.filter((row) => !row.isDemo);
     // Legacy admin email lives on the settings row, not event_hosts.
     const settings = storage.getSettings();
     for (const row of rows) {
       if (row.isLegacyRoot && !row.hostEmail) row.hostEmail = settings.adminEmail || "";
     }
-    res.json({ events: rows });
+    res.json({
+      events: rows,
+      totals: {
+        events: billable.length,
+        revenueCents: billable.reduce((sum, row) => sum + row.amountCents, 0),
+        invited: billable.reduce((sum, row) => sum + row.invited, 0),
+      },
+    });
   });
 
   app.patch("/api/super/events/:id", requireSuper, (req, res) => {

@@ -103,11 +103,27 @@ export default function EventSite({ slug }: { slug: string }) {
             Preview — guests can't see this until you publish.
           </p>
         )}
+        {event.isDemo && (
+          <p className="mb-6 rounded-2xl border border-black/10 bg-white/90 px-4 py-3 text-center text-sm" data-testid="banner-demo">
+            {pick(
+              "Sample site. You can try the RSVP. Replies stay on this demo and no email is sent.",
+              "Sitio de muestra. Puede probar la confirmación. Las respuestas se quedan aquí y no se envía ningún correo.",
+            )}
+          </p>
+        )}
 
         <header className="text-center" data-testid="section-event-hero">
+          {event.photos[0] && (
+            <img
+              src={event.photos[0].url}
+              alt=""
+              className="mb-8 aspect-[16/9] w-full rounded-3xl object-cover"
+              data-testid="img-event-hero"
+            />
+          )}
           {wedding ? (
             <p className="text-[11px] uppercase tracking-[0.35em] text-[#8a7350]">
-              {pick("Together with their families", "Junto con sus familias")}
+              {inviteLine(event.eventKind, es)}
             </p>
           ) : (
             <p className="label-caps">{pick("You are invited", "Están invitados")}</p>
@@ -127,7 +143,7 @@ export default function EventSite({ slug }: { slug: string }) {
             {event.partnerName ? ` & ${event.partnerName}` : ""}
           </h1>
           <p className={`mt-2 ${wedding ? "text-xs uppercase tracking-[0.28em] text-[#8a7350]" : "font-display italic text-[hsl(28_31%_42%)]"}`}>
-            {pick(event.title, event.title)}
+            {pick(event.title, TITLE_ES[event.title] || "")}
           </p>
           {wedding && <div className="mx-auto mt-6 h-px w-24 bg-[#8a7350]" />}
           <p className={`mt-6 ${wedding ? "font-serif text-xl" : "font-display text-lg italic"}`} data-testid="text-event-date">
@@ -214,9 +230,9 @@ export default function EventSite({ slug }: { slug: string }) {
             </a>
           </Section>
         )}
-        {event.photos.length > 0 && (
+        {event.photos.length > 1 && (
           <section className="mt-8 grid grid-cols-2 gap-2">
-            {event.photos.map((p) => (
+            {event.photos.slice(1).map((p) => (
               <figure key={p.id} className="overflow-hidden rounded-xl bg-white">
                 <img src={p.url} alt={p.caption || ""} className="aspect-square w-full object-cover" />
               </figure>
@@ -232,6 +248,23 @@ export default function EventSite({ slug }: { slug: string }) {
       </div>
     </div>
   );
+}
+
+const TITLE_ES: Record<string, string> = {
+  Wedding: "Boda",
+  Quinceañera: "Quinceañera",
+  "Baby shower": "Baby shower",
+  Birthday: "Cumpleaños",
+  Anniversary: "Aniversario",
+  Graduation: "Graduación",
+  Party: "Fiesta",
+};
+
+function inviteLine(kind: string, es: boolean): string {
+  if (kind === "wedding") return es ? "Junto con sus familias" : "Together with their families";
+  if (kind === "babyshower") return es ? "Acompáñenos" : "Please join us";
+  if (kind === "graduation") return es ? "Acompáñenos a celebrar" : "Come celebrate";
+  return es ? "Están invitados" : "You are invited";
 }
 
 function Venue({

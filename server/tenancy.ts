@@ -64,6 +64,12 @@ export function resolveSite(req: Request): { mode: SiteMode; slug: string | null
   return { mode: "platform", slug: null };
 }
 
+/** Uploaded files live under /uploads. Bundled sample art is served from /demos. */
+export function publicPhotoUrl(eventId: string, filename: string): string {
+  if (/^\/demos\/[a-z0-9-]+\.svg$/.test(filename)) return filename;
+  return `/uploads/${eventId}/${filename}`;
+}
+
 export function uploadRoot(): string {
   if (process.env.UPLOAD_DIR) return process.env.UPLOAD_DIR;
   const dbPath = process.env.DATABASE_PATH || "./data.db";
@@ -79,6 +85,7 @@ export function toPublicEvent(event: EventRecord): PublicEvent {
     status: event.status === "active" ? "active" : "draft",
     paid: !!event.paid,
     isLegacyRoot: !!event.isLegacyRoot,
+    isDemo: !!event.isDemo,
     package: event.package === "full_custom" ? "full_custom" : "basic",
     honoree: event.honoree,
     partnerName: event.partnerName,
@@ -117,7 +124,7 @@ export function toPublicEvent(event: EventRecord): PublicEvent {
       .filter((p) => p && p.filename)
       .map((p) => ({
         id: p.id,
-        url: `/uploads/${event.id}/${p.filename}`,
+        url: publicPhotoUrl(event.id, p.filename),
         caption: p.caption || "",
       })),
     desiredDomain: event.desiredDomain || "",

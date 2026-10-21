@@ -37,6 +37,10 @@ const copy = {
     fiestaD: "Color at the edges. Marigold, coral, and teal without the clutter.",
     minimal: "Minimal",
     minimalD: "Black, white, and the facts of the day. Nothing else competing.",
+    viewSample: "View sample",
+    elegantWhen: "June 12, 2027",
+    fiestaWhen: "August 21, 2027",
+    minimalWhen: "March 20, 2027",
     basic: "Basic",
     basicPrice: "$100",
     basicNote: "per event",
@@ -96,6 +100,10 @@ const copy = {
     fiestaD: "Color en los bordes. Amarillo, coral y verde, sin recargar.",
     minimal: "Minimal",
     minimalD: "Negro, blanco y los datos del día. Nada más compitiendo.",
+    viewSample: "Ver ejemplo",
+    elegantWhen: "12 de junio de 2027",
+    fiestaWhen: "21 de agosto de 2027",
+    minimalWhen: "20 de marzo de 2027",
     basic: "Básico",
     basicPrice: "$100",
     basicNote: "por evento",
@@ -216,23 +224,35 @@ export default function Landing() {
           <p className="mt-2 max-w-xl text-[#526072]">{t.templatesLede}</p>
           <div className="mt-8 grid gap-4 lg:grid-cols-3">
             <TemplatePreview
-              href="/start?template=elegant"
+              href="/e/demo-elegant"
+              testId="link-sample-elegant"
               name={t.elegant}
               body={t.elegantD}
+              view={t.viewSample}
+              sampleName="Sofia & Daniel"
+              sampleWhen={t.elegantWhen}
               sampleClass="bg-[#f4efe6] text-[#1c1914]"
               bar="bg-[#9a7b4f]"
             />
             <TemplatePreview
-              href="/start?template=fiesta"
+              href="/e/demo-fiesta"
+              testId="link-sample-fiesta"
               name={t.fiesta}
               body={t.fiestaD}
+              view={t.viewSample}
+              sampleName="Camila Ortiz"
+              sampleWhen={t.fiestaWhen}
               sampleClass="bg-[#fff6ea] text-[#c2410c]"
               bar="bg-gradient-to-r from-[#e23d2b] via-[#f0b429] to-[#0f766e]"
             />
             <TemplatePreview
-              href="/start?template=minimal"
+              href="/e/demo-minimal"
+              testId="link-sample-minimal"
               name={t.minimal}
               body={t.minimalD}
+              view={t.viewSample}
+              sampleName="Elena Morales"
+              sampleWhen={t.minimalWhen}
               sampleClass="bg-white text-[#111]"
               bar="bg-[#111]"
             />
@@ -338,27 +358,36 @@ function PriceCard({
 
 function TemplatePreview({
   href,
+  testId,
   name,
   body,
+  view,
+  sampleName,
+  sampleWhen,
   sampleClass,
   bar,
 }: {
   href: string;
+  testId: string;
   name: string;
   body: string;
+  view: string;
+  sampleName: string;
+  sampleWhen: string;
   sampleClass: string;
   bar: string;
 }) {
   return (
-    <Link href={href} className="overflow-hidden rounded-2xl border border-[#d7dee7] bg-white">
+    <Link href={href} className="overflow-hidden rounded-2xl border border-[#d7dee7] bg-white" data-testid={testId}>
       <div className={`px-5 py-8 ${sampleClass}`}>
         <div className={`mb-6 h-1.5 w-16 rounded-full ${bar}`} />
-        <p className="brand-display text-3xl">Alex & Sam</p>
-        <p className="mt-1 text-sm opacity-70">June 12 · 4:00 PM</p>
+        <p className="brand-display text-3xl">{sampleName}</p>
+        <p className="mt-1 text-sm opacity-70">{sampleWhen}</p>
       </div>
       <div className="px-5 py-4">
         <h3 className="font-semibold">{name}</h3>
         <p className="mt-1 text-sm leading-relaxed text-[#526072]">{body}</p>
+        <p className="mt-3 text-sm font-semibold text-[#e23d2b]">{view}</p>
       </div>
     </Link>
   );

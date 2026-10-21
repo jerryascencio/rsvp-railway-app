@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Original marigold medallion">
+  <rect width="800" height="800" fill="#fff6ea"/>
+  <g transform="translate(400 400)">
+    <g fill="#e23d2b">
+      <path d="M-40-280h80l-16 70h-48z"/>
+      <path d="M-40 210h80l-16 70h-48z" transform="rotate(180)"/>
+      <path d="M-40-280h80l-16 70h-48z" transform="rotate(90)"/>
+      <path d="M-40-280h80l-16 70h-48z" transform="rotate(270)"/>
+    </g>
+    <circle r="150" fill="#f0b429"/>
+    <circle r="96" fill="#e23d2b"/>
+    <circle r="42" fill="#fff6ea"/>
+    <circle r="16" fill="#0f766e"/>
+  </g>
+</svg>

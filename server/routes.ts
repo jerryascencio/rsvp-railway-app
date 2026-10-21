@@ -304,31 +304,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     const totals = storage.totals(event.id);
     let email = { reportSent: false, guestSent: false } as any;
-    try {
-      email = await sendRsvpEmails({
-        settings: mailSettings(event.id),
-        guest,
-        response,
-        totals,
-        language,
-        eventMail: event.isLegacyRoot
-          ? undefined
-          : {
-              honoree: event.honoree,
-              title: event.title || "celebration",
-              dateLong: event.dateLong,
-              ceremonyLabel: event.ceremonyLabel || "Ceremony",
-              ceremonyTime: event.ceremonyTime,
-              ceremonyVenue: event.ceremonyVenue,
-              ceremonyAddress: event.ceremonyAddress,
-              receptionTime: event.receptionTime,
-              receptionVenue: event.receptionVenue,
-              receptionAddress: event.receptionAddress,
-              siteUrl: eventPublicUrl(req, event),
-            },
-      });
-    } catch (err: any) {
-      console.warn("[rsvp] email step failed but RSVP saved:", err?.message || err);
+    // Demo guests use example.com addresses. Saving the reply is enough;
+    // nothing is mailed, so a sample RSVP cannot reach a real inbox.
+    if (!event.isDemo) {
+      try {
+        email = await sendRsvpEmails({
+          settings: mailSettings(event.id),
+          guest,
+          response,
+          totals,
+          language,
+          eventMail: event.isLegacyRoot
+            ? undefined
+            : {
+                honoree: event.honoree,
+                title: event.title || "celebration",
+                dateLong: event.dateLong,
+                ceremonyLabel: event.ceremonyLabel || "Ceremony",
+                ceremonyTime: event.ceremonyTime,
+                ceremonyVenue: event.ceremonyVenue,
+                ceremonyAddress: event.ceremonyAddress,
+                receptionTime: event.receptionTime,
+                receptionVenue: event.receptionVenue,
+                receptionAddress: event.receptionAddress,
+                siteUrl: eventPublicUrl(req, event),
+              },
+        });
+      } catch (err: any) {
+        console.warn("[rsvp] email step failed but RSVP saved:", err?.message || err);
+      }
     }
 
     res.json({

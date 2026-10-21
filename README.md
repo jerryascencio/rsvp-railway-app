@@ -178,6 +178,8 @@ Phase 1 turns this app into a small RSVP service other families can buy, without
 
 Leah's existing database migrates on boot into an event with slug `leah`. The migration only adds tables and columns and backfills `event_id`. It does not drop or rewrite the original tables. On `www.leahaespinoza.com` the site still renders at `/` and the admin stays at `/#/admin`. Other events are at `/e/<slug>`.
 
+A platform database (one with no legacy root event) also seeds three published sample sites: `/e/demo-elegant`, `/e/demo-fiesta`, and `/e/demo-minimal`. They are marked `is_demo`, paid so guests can open them, and stored with a $0 amount. Studio totals skip them. RSVPs on a sample are saved and not emailed. The seed does not run when a legacy root event is already present, and a second boot does not add another guest list.
+
 ### New environment variables
 
 | Variable | Required | Purpose |

@@ -47,6 +47,8 @@ export type PublicEvent = {
   status: "draft" | "active";
   paid: boolean;
   isLegacyRoot: boolean;
+  /** Sample site seeded for the template gallery. RSVPs are stored and not emailed. */
+  isDemo: boolean;
   package: EventPackage;
   honoree: string;
   partnerName: string;

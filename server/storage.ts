@@ -21,6 +21,7 @@ import {
   EVENT,
 } from "@shared/schema";
 import { LEAH_EVENT_ID } from "@shared/platform";
+import { seedDemoEvents } from "./demo-seed";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
@@ -108,6 +109,7 @@ for (const stmt of [
     id TEXT PRIMARY KEY,
     slug TEXT NOT NULL UNIQUE,
     is_legacy_root INTEGER NOT NULL DEFAULT 0,
+    is_demo INTEGER NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'draft',
     package TEXT NOT NULL DEFAULT 'basic',
     template TEXT NOT NULL DEFAULT 'quince',
@@ -183,6 +185,7 @@ for (const stmt of [
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL
   )`,
+  `ALTER TABLE events ADD COLUMN is_demo INTEGER NOT NULL DEFAULT 0`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_events_slug ON events (slug)`,
   `CREATE INDEX IF NOT EXISTS idx_guests_event ON guests (event_id)`,
   `CREATE INDEX IF NOT EXISTS idx_responses_event ON responses (event_id)`,
@@ -219,8 +222,14 @@ function migrateLegacyEvent() {
   } catch {
     settingsRow = undefined;
   }
+  // Platform databases already have event rows (real orders, or the sample
+  // sites). Their guest lists must not be read as Leah's original file.
+  // The legacy file is the one that reaches this point with guests, an
+  // admin, or a finished setup, and an empty events table.
+  const eventCount = (sqlite.prepare("SELECT COUNT(*) AS c FROM events").get() as { c: number }).c;
   const looksLegacy =
-    guestCount > 0 || adminCount > 0 || Number(settingsRow?.setup_complete) === 1;
+    eventCount === 0 &&
+    (guestCount > 0 || adminCount > 0 || Number(settingsRow?.setup_complete) === 1);
 
   if (!already && looksLegacy) {
     const now = Date.now();
@@ -929,3 +938,5 @@ export class Storage {
 }
 
 export const storage = new Storage();
+
+seedDemoEvents(storage);

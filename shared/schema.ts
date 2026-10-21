@@ -127,6 +127,8 @@ export const events = sqliteTable("events", {
   id: text("id").primaryKey(),
   slug: text("slug").notNull().unique(),
   isLegacyRoot: integer("is_legacy_root").notNull().default(0),
+  /** Sample invitation. Published, but omitted from revenue and studio totals. */
+  isDemo: integer("is_demo").notNull().default(0),
   /** draft (preview only) or active (public). */
   status: text("status").notNull().default("draft"),
   /** basic ($100) or full_custom ($250, fulfilled by hand). */
