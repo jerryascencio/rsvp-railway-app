@@ -3,8 +3,10 @@ import { Link } from "wouter";
 import { Loader2, Minus, Plus, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { adminPath } from "@/lib/event-scope";
-import type { PublicEvent } from "@shared/platform";
+import { normalizeTemplate, type PublicEvent } from "@shared/platform";
+import "@/brand.css";
 import Home from "@/pages/home";
+import { useBrandFonts } from "@/components/brand-shell";
 
 type Match = {
   id: string;
@@ -17,6 +19,7 @@ type Match = {
 };
 
 export default function EventSite({ slug }: { slug: string }) {
+  useBrandFonts();
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState(false);
   const [event, setEvent] = useState<PublicEvent | null>(null);
@@ -56,22 +59,23 @@ export default function EventSite({ slug }: { slug: string }) {
 
   if (!event) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-[hsl(28_60%_97%)] px-6 text-center" data-testid="page-unpublished">
-        <p className="font-script text-5xl text-[hsl(346_37%_48%)]">Invitation</p>
-        <p className="font-display mt-4 max-w-sm text-lg italic">This invitation isn't published yet.</p>
+      <div className="brand-site flex min-h-screen flex-col items-center justify-center px-6 text-center" data-testid="page-unpublished">
+        <p className="brand-display text-4xl">Invitation</p>
+        <p className="mt-4 max-w-sm text-lg">This invitation isn't published yet.</p>
       </div>
     );
   }
 
   const es = lang === "es";
   const pick = (en: string, esText: string) => (es && esText.trim() ? esText : en);
-  const wedding = event.template === "wedding";
+  const theme = normalizeTemplate(event.template);
+  const wedding = theme !== "quince";
 
   return (
     <div
       className={
         wedding
-          ? "min-h-screen bg-[#f6f3ee] text-[#1c1917]"
+          ? `invite-theme-${theme} min-h-screen text-[#1c1917]`
           : "invite-page relative min-h-screen overflow-hidden text-foreground"
       }
       data-testid="page-event"

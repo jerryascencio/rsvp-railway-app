@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { LanguageProvider } from "@/lib/language";
 import { api, restoreAuthToken } from "@/lib/api";
 import { isLegacyHostname, setSiteContext } from "@/lib/event-scope";
+import { BRAND_NAME } from "@shared/platform";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Admin from "@/pages/admin";
@@ -91,8 +92,8 @@ function CustomDomainApp({ slug }: { slug: string }) {
 
 function Splash() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[hsl(28_60%_96%)]">
-      <p className="font-script text-4xl text-[hsl(346_37%_56%)]">Invitation</p>
+    <div className="flex min-h-screen items-center justify-center bg-[#f4f6f8] font-sans text-[#142033]">
+      <p className="text-sm font-medium tracking-tight">{BRAND_NAME}</p>
     </div>
   );
 }

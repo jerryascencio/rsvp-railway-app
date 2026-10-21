@@ -169,7 +169,7 @@ script/build.ts    Vite client build + esbuild server bundle
 
 Phase 1 turns this app into a small RSVP service other families can buy, without changing Leah's live site.
 
-- **Basic** — $100. A quinceañera (floral) or wedding (elegant) template, bilingual copy, guest CSV import, photos, and a host dashboard.
+- **Basic** — $100. An Elegant, Fiesta, or Minimal template for any celebration, bilingual copy, guest CSV import, photos, and a host dashboard.
 - **Custom domain** — +$25 on Basic. The order stores the domain they want. Jerry connects it later by saving the live hostname in Studio (`/super`).
 - **Full custom** — $250. The order stores their notes. Fulfillment is manual. They can still publish the template site.
 - Unpaid events stay a private preview. Publishing requires a paid order.

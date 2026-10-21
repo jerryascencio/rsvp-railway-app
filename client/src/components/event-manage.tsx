@@ -116,6 +116,9 @@ export default function EventManage({
             value={event.template}
             onChange={(e) => setEvent({ ...event, template: e.target.value as PublicEvent["template"] })}
           >
+            <option value="elegant">Elegant</option>
+            <option value="fiesta">Fiesta</option>
+            <option value="minimal">Minimal</option>
             <option value="quince">Quinceañera / floral</option>
             <option value="wedding">Wedding / elegant</option>
           </select>

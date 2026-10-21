@@ -1,5 +1,8 @@
 /** Shared pricing, RSVP-close rule, and public event shape. */
 
+/** Product name for the marketing site. Change it here only. */
+export const BRAND_NAME = "RSVP Sites by Mission";
+
 export const PRICE_CENTS = {
   basic: 10_000,
   domain: 2_500,
@@ -25,7 +28,13 @@ export const RESERVED_SLUGS = new Set([
 ]);
 
 export type EventPackage = "basic" | "full_custom";
-export type EventTemplate = "quince" | "wedding";
+export const EVENT_TEMPLATES = ["elegant", "fiesta", "minimal", "quince", "wedding"] as const;
+export type EventTemplate = (typeof EVENT_TEMPLATES)[number];
+
+export function normalizeTemplate(raw: unknown): EventTemplate {
+  const value = String(raw || "");
+  return (EVENT_TEMPLATES as readonly string[]).includes(value) ? (value as EventTemplate) : "elegant";
+}
 
 export type HotelStop = { name: string; address: string; note: string };
 export type ScheduleStop = { time: string; title: string; titleEs?: string; detail?: string };
@@ -119,6 +128,11 @@ export function isValidSlug(slug: string): boolean {
 const KIND_TITLE: Record<string, { en: string; es: string }> = {
   quinceanera: { en: "Quinceañera", es: "Quinceañera" },
   wedding: { en: "Wedding", es: "Boda" },
+  birthday: { en: "Birthday", es: "Cumpleaños" },
+  babyshower: { en: "Baby shower", es: "Baby shower" },
+  anniversary: { en: "Anniversary", es: "Aniversario" },
+  graduation: { en: "Graduation", es: "Graduación" },
+  party: { en: "Party", es: "Fiesta" },
   baptism: { en: "Baptism", es: "Bautizo" },
   sweet16: { en: "Sweet 16", es: "Sweet 16" },
   other: { en: "Celebration", es: "Celebración" },

@@ -1,0 +1,115 @@
+/* Marketing and starter-template chrome. Leah's invitation does not use these classes. */
+
+.brand-site {
+  --ink: #142033;
+  --muted: #526072;
+  --paper: #f3f5f8;
+  --card: #ffffff;
+  --line: #d7dee7;
+  --coral: #e23d2b;
+  --coral-deep: #c43222;
+  --marigold: #e8a317;
+  --teal: #0f766e;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
+}
+
+.brand-display {
+  font-family: Fraunces, Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+.brand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--coral);
+  color: white;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.85rem 1.25rem;
+}
+
+.brand-btn:hover {
+  background: var(--coral-deep);
+}
+
+.brand-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 0.8rem 1.15rem;
+}
+
+.brand-input {
+  width: 100%;
+  border-radius: 0.7rem;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 0.75rem 0.85rem;
+  font-size: 1rem;
+  outline: none;
+}
+
+.brand-input:focus {
+  border-color: #142033;
+}
+
+.invite-theme-wedding {
+  background: #f6f3ee;
+}
+
+.invite-theme-elegant {
+  background: #f4efe6;
+  color: #1c1914;
+}
+
+.invite-theme-elegant .font-serif {
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 500;
+}
+
+.invite-theme-fiesta {
+  background: #fff6ea;
+  color: #1f1308;
+}
+
+.invite-theme-fiesta::before {
+  content: "";
+  display: block;
+  height: 10px;
+  background: linear-gradient(90deg, #e23d2b, #f0b429 48%, #0f766e);
+}
+
+.invite-theme-fiesta .font-serif {
+  font-family: Outfit, ui-sans-serif, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.invite-theme-minimal {
+  background: #ffffff;
+  color: #111111;
+}
+
+.invite-theme-minimal::before {
+  content: "";
+  display: block;
+  height: 3px;
+  background: #111111;
+}
+
+.invite-theme-minimal .font-serif {
+  font-family: Outfit, ui-sans-serif, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}

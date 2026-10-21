@@ -8,11 +8,11 @@ import { storage } from "./storage";
 import {
   describeDate,
   isValidSlug,
+  normalizeTemplate,
   orderAmountCents,
   slugify,
   titleForKind,
   type EventPackage,
-  type EventTemplate,
   type HotelStop,
   type ScheduleStop,
 } from "@shared/platform";
@@ -165,7 +165,7 @@ export function registerPlatformRoutes(app: Express) {
       return res.status(400).json({ message: "Use a password of at least 8 characters." });
     }
     const pkg: EventPackage = req.body?.package === "full_custom" ? "full_custom" : "basic";
-    const template: EventTemplate = req.body?.template === "wedding" ? "wedding" : "quince";
+    const template = normalizeTemplate(req.body?.template);
     const customDomain = pkg === "basic" && !!req.body?.customDomain;
     const desiredDomain = customDomain || pkg === "full_custom" ? cleanDomain(cleanText(req.body?.desiredDomain, 120)) : "";
     if ((customDomain || (pkg === "full_custom" && desiredDomain)) && desiredDomain && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(desiredDomain)) {
@@ -183,7 +183,7 @@ export function registerPlatformRoutes(app: Express) {
     if (storage.getEventBySlug(slug)) {
       return res.status(409).json({ message: "That link is taken. Try another." });
     }
-    const kind = cleanText(req.body?.eventKind, 40) || (template === "wedding" ? "wedding" : "quinceanera");
+    const kind = cleanText(req.body?.eventKind, 40) || "party";
     const titles = titleForKind(kind);
     const notes = cleanText(req.body?.notes, 4000);
     if (pkg === "full_custom" && notes.length < 8) {
@@ -211,8 +211,8 @@ export function registerPlatformRoutes(app: Express) {
       dayNameEs: described.dayNameEs,
       day: described.day,
       year: described.year,
-      ceremonyLabel: cleanText(req.body?.ceremonyLabel, 40) || (template === "wedding" ? "Ceremony" : "Mass"),
-      ceremonyLabelEs: cleanText(req.body?.ceremonyLabelEs, 40) || (template === "wedding" ? "Ceremonia" : "Misa"),
+      ceremonyLabel: cleanText(req.body?.ceremonyLabel, 40) || (kind === "quinceanera" ? "Mass" : "Ceremony"),
+      ceremonyLabelEs: cleanText(req.body?.ceremonyLabelEs, 40) || (kind === "quinceanera" ? "Misa" : "Ceremonia"),
       ceremonyTime: cleanText(req.body?.ceremonyTime, 40),
       ceremonyVenue: cleanText(req.body?.ceremonyVenue, 160),
       ceremonyAddress: cleanText(req.body?.ceremonyAddress, 200),
@@ -434,8 +434,8 @@ export function registerPlatformRoutes(app: Express) {
       patch.dateIso = cleanText(req.body.dateIso, 10);
       Object.assign(patch, described);
     }
-    if (req.body?.template === "wedding" || req.body?.template === "quince") {
-      patch.template = req.body.template;
+    if (req.body?.template !== undefined) {
+      patch.template = normalizeTemplate(req.body.template);
     }
     if (req.body?.eventKind) {
       const kind = cleanText(req.body.eventKind, 40);

@@ -3,13 +3,16 @@ import { Link, useLocation } from "wouter";
 import { api, setAuthToken } from "@/lib/api";
 import { setSiteContext } from "@/lib/event-scope";
 import { slugify } from "@shared/platform";
+import { useLanguage } from "@/lib/language";
+import { BrandShell, LanguageToggle, Wordmark } from "@/components/brand-shell";
 
-type Kind = "quinceanera" | "wedding" | "baptism" | "sweet16" | "other";
+type Kind = "wedding" | "quinceanera" | "birthday" | "babyshower" | "anniversary" | "graduation" | "party" | "baptism" | "sweet16" | "other";
+type StarterTemplate = "elegant" | "fiesta" | "minimal";
 
 type Draft = {
   email: string;
   password: string;
-  template: "quince" | "wedding";
+  template: StarterTemplate;
   honoree: string;
   partnerName: string;
   eventKind: Kind;
@@ -41,13 +44,15 @@ type Draft = {
 function initialDraft(): Draft {
   const q = new URLSearchParams(window.location.search);
   const pkg = q.get("package") === "full_custom" ? "full_custom" : "basic";
+  const requested = q.get("template");
+  const template: StarterTemplate = requested === "fiesta" || requested === "minimal" ? requested : "elegant";
   return {
     email: "",
     password: "",
-    template: "quince",
+    template,
     honoree: "",
     partnerName: "",
-    eventKind: "quinceanera",
+    eventKind: "party",
     familyLine: "",
     slug: "",
     dateIso: "",
@@ -74,11 +79,13 @@ function initialDraft(): Draft {
   };
 }
 
-const input =
-  "w-full rounded-md border border-[hsl(28_25%_78%)] bg-white px-3 py-3 text-base outline-none focus:border-[hsl(346_37%_50%)]";
+const input = "brand-input mt-1";
 
 export default function Wizard() {
   const [, navigate] = useLocation();
+  const { language } = useLanguage();
+  const es = language === "es";
+  const tr = (en: string, esText: string) => (es ? esText : en);
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(initialDraft);
   const [slugTouched, setSlugTouched] = useState(false);
@@ -94,18 +101,18 @@ export default function Wizard() {
   function next() {
     setError(null);
     if (step === 0) {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email)) return setError("Enter a valid email.");
-      if (draft.password.length < 8) return setError("Use at least 8 characters.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email)) return setError(tr("Enter a valid email.", "Escriba un correo válido."));
+      if (draft.password.length < 8) return setError(tr("Use at least 8 characters.", "Use al menos 8 caracteres."));
     }
     if (step === 2) {
-      if (draft.honoree.trim().length < 2) return setError("Who is this celebration for?");
-      if (!draft.dateIso) return setError("Choose the date.");
+      if (draft.honoree.trim().length < 2) return setError(tr("Who is this celebration for?", "¿Para quién es la celebración?"));
+      if (!draft.dateIso) return setError(tr("Choose the date.", "Elija la fecha."));
     }
     if (step === 3 && draft.package === "full_custom" && draft.notes.trim().length < 8) {
-      return setError("Add a note about the custom design.");
+      return setError(tr("Add a note about the custom design.", "Agregue una nota sobre el diseño."));
     }
     if (step === 3 && draft.customDomain && draft.package === "basic" && !draft.desiredDomain.trim()) {
-      return setError("What domain should we buy?");
+      return setError(tr("What domain should we buy?", "¿Qué dominio compramos?"));
     }
     setStep((s) => Math.min(4, s + 1));
   }
@@ -126,7 +133,7 @@ export default function Wizard() {
           : [],
         schedule: [
           draft.ceremonyTime || draft.ceremonyVenue
-            ? { time: draft.ceremonyTime, title: draft.template === "wedding" ? "Ceremony" : "Mass", detail: draft.ceremonyVenue }
+            ? { time: draft.ceremonyTime, title: draft.eventKind === "quinceanera" ? "Mass" : "Ceremony", detail: draft.ceremonyVenue }
             : null,
           draft.receptionTime || draft.receptionVenue
             ? { time: draft.receptionTime, title: "Reception", detail: draft.receptionVenue }
@@ -143,36 +150,43 @@ export default function Wizard() {
       }
       navigate(`/e/${res.event.slug}/admin`);
     } catch (err: any) {
-      setError(err?.message || "Could not create the event.");
+      setError(err?.message || tr("Could not create the event.", "No se pudo crear el evento."));
     } finally {
       setBusy(false);
     }
   }
 
+  const templateName =
+    draft.template === "fiesta" ? tr("Fiesta", "Fiesta") : draft.template === "minimal" ? tr("Minimal", "Minimal") : tr("Elegant", "Elegante");
+
   return (
-    <div className="min-h-screen bg-[hsl(28_60%_97%)] px-4 py-8 text-[hsl(19_17%_22%)]" data-testid="page-wizard">
+    <BrandShell>
+    <div className="px-4 py-8" data-testid="page-wizard">
       <div className="mx-auto w-full max-w-lg">
-        <Link href="/" className="font-script text-3xl text-[hsl(346_37%_48%)]">
-          Invitation
-        </Link>
-        <p className="mt-2 text-[11px] uppercase tracking-[0.18em] text-[hsl(28_31%_42%)]">
-          Step {step + 1} of 5
+        <div className="flex items-center justify-between gap-3">
+          <Link href="/" aria-label="Home">
+            <Wordmark compact />
+          </Link>
+          <LanguageToggle />
+        </div>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-[#526072]">
+          {tr(`Step ${step + 1} of 5`, `Paso ${step + 1} de 5`)}
         </p>
-        <div className="mt-3 h-1 overflow-hidden rounded-full bg-[hsl(28_30%_88%)]">
-          <div className="h-full bg-[hsl(346_37%_52%)]" style={{ width: `${((step + 1) / 5) * 100}%` }} />
+        <div className="mt-3 h-1 overflow-hidden rounded-full bg-[#d7dee7]">
+          <div className="h-full bg-[#e23d2b]" style={{ width: `${((step + 1) / 5) * 100}%` }} />
         </div>
 
-        <div className="mt-6 rounded-2xl border border-[hsl(27_30%_86%)] bg-white p-5 shadow-sm sm:p-7">
+        <div className="mt-6 rounded-2xl border border-[#d7dee7] bg-white p-5 shadow-sm sm:p-7">
           {step === 0 && (
             <div className="space-y-4">
-              <h1 className="font-display text-3xl">Your host login</h1>
-              <p className="text-sm text-[hsl(19_12%_40%)]">This email opens the dashboard for your event.</p>
+              <h1 className="brand-display text-3xl">{tr("Your host login", "Su acceso de anfitrión")}</h1>
+              <p className="text-sm text-[#526072]">{tr("This email opens the dashboard for your event.", "Este correo abre el tablero de su evento.")}</p>
               <label className="block text-sm">
-                Email
+                {tr("Email", "Correo")}
                 <input className={`${input} mt-1`} type="email" value={draft.email} onChange={(e) => set({ email: e.target.value })} data-testid="input-wizard-email" />
               </label>
               <label className="block text-sm">
-                Password
+                {tr("Password", "Contraseña")}
                 <input className={`${input} mt-1`} type="password" value={draft.password} onChange={(e) => set({ password: e.target.value })} data-testid="input-wizard-password" />
               </label>
             </div>
@@ -180,27 +194,36 @@ export default function Wizard() {
 
           {step === 1 && (
             <div className="space-y-3">
-              <h1 className="font-display text-3xl">Choose a template</h1>
+              <h1 className="brand-display text-3xl">{tr("Choose a template", "Elija una plantilla")}</h1>
               <TemplatePick
-                active={draft.template === "quince"}
-                title="Quinceañera"
-                detail="Floral, script, rose and cream."
-                onClick={() => set({ template: "quince", eventKind: draft.eventKind === "wedding" ? "quinceanera" : draft.eventKind })}
+                id="elegant"
+                active={draft.template === "elegant"}
+                title={tr("Elegant", "Elegante")}
+                detail={tr("Warm paper, quiet type, room for a long name.", "Papel cálido, tipo sereno, espacio para un nombre largo.")}
+                onClick={() => set({ template: "elegant" })}
               />
               <TemplatePick
-                active={draft.template === "wedding"}
-                title="Wedding"
-                detail="Ivory, ink, and a gold rule."
-                onClick={() => set({ template: "wedding", eventKind: "wedding" })}
+                id="fiesta"
+                active={draft.template === "fiesta"}
+                title="Fiesta"
+                detail={tr("Coral, marigold, and teal. Color without the clutter.", "Coral, amarillo y verde. Color sin recargar.")}
+                onClick={() => set({ template: "fiesta" })}
+              />
+              <TemplatePick
+                id="minimal"
+                active={draft.template === "minimal"}
+                title="Minimal"
+                detail={tr("Black, white, and the facts of the day.", "Negro, blanco y los datos del día.")}
+                onClick={() => set({ template: "minimal" })}
               />
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-3">
-              <h1 className="font-display text-3xl">The celebration</h1>
+              <h1 className="brand-display text-3xl">{tr("The celebration", "La celebración")}</h1>
               <label className="block text-sm">
-                Honoree
+                {tr("Honoree", "Homenajeado")}
                 <input
                   className={`${input} mt-1`}
                   value={draft.honoree}
@@ -212,50 +235,55 @@ export default function Wizard() {
                 />
               </label>
               <label className="block text-sm">
-                Partner or second name <span className="text-[hsl(19_10%_55%)]">(optional)</span>
+                {tr("Partner or second name", "Pareja o segundo nombre")} <span className="text-[#526072]">({tr("optional", "opcional")})</span>
                 <input className={`${input} mt-1`} value={draft.partnerName} onChange={(e) => set({ partnerName: e.target.value })} />
               </label>
               <label className="block text-sm">
-                Occasion
+                {tr("Occasion", "Ocasión")}
                 <select className={`${input} mt-1`} value={draft.eventKind} onChange={(e) => set({ eventKind: e.target.value as Kind })}>
+                  <option value="wedding">{tr("Wedding", "Boda")}</option>
                   <option value="quinceanera">Quinceañera</option>
-                  <option value="wedding">Wedding</option>
-                  <option value="baptism">Baptism</option>
+                  <option value="birthday">{tr("Birthday", "Cumpleaños")}</option>
+                  <option value="babyshower">Baby shower</option>
+                  <option value="anniversary">{tr("Anniversary", "Aniversario")}</option>
+                  <option value="graduation">{tr("Graduation", "Graduación")}</option>
+                  <option value="party">{tr("Party", "Fiesta")}</option>
+                  <option value="baptism">{tr("Baptism", "Bautizo")}</option>
                   <option value="sweet16">Sweet 16</option>
-                  <option value="other">Other celebration</option>
+                  <option value="other">{tr("Other celebration", "Otra celebración")}</option>
                 </select>
               </label>
               <label className="block text-sm">
-                Family line
+                {tr("Family line", "Familia")}
                 <input className={`${input} mt-1`} placeholder="The Garcia family" value={draft.familyLine} onChange={(e) => set({ familyLine: e.target.value })} />
               </label>
               <label className="block text-sm">
-                Date
+                {tr("Date", "Fecha")}
                 <input className={`${input} mt-1`} type="date" value={draft.dateIso} onChange={(e) => set({ dateIso: e.target.value })} data-testid="input-wizard-date" />
               </label>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block text-sm">Ceremony time<input className={`${input} mt-1`} placeholder="2:30 PM" value={draft.ceremonyTime} onChange={(e) => set({ ceremonyTime: e.target.value })} /></label>
-                <label className="block text-sm">Reception time<input className={`${input} mt-1`} placeholder="5:00 PM" value={draft.receptionTime} onChange={(e) => set({ receptionTime: e.target.value })} /></label>
+                <label className="block text-sm">{tr("Ceremony time", "Hora de la ceremonia")}<input className={`${input} mt-1`} placeholder="2:30 PM" value={draft.ceremonyTime} onChange={(e) => set({ ceremonyTime: e.target.value })} /></label>
+                <label className="block text-sm">{tr("Reception time", "Hora de la recepción")}<input className={`${input} mt-1`} placeholder="5:00 PM" value={draft.receptionTime} onChange={(e) => set({ receptionTime: e.target.value })} /></label>
               </div>
-              <label className="block text-sm">Ceremony venue<input className={`${input} mt-1`} value={draft.ceremonyVenue} onChange={(e) => set({ ceremonyVenue: e.target.value })} /></label>
-              <label className="block text-sm">Ceremony address<input className={`${input} mt-1`} value={draft.ceremonyAddress} onChange={(e) => set({ ceremonyAddress: e.target.value })} /></label>
-              <label className="block text-sm">Reception venue<input className={`${input} mt-1`} value={draft.receptionVenue} onChange={(e) => set({ receptionVenue: e.target.value })} /></label>
-              <label className="block text-sm">Reception address<input className={`${input} mt-1`} value={draft.receptionAddress} onChange={(e) => set({ receptionAddress: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Ceremony venue", "Lugar de la ceremonia")}<input className={`${input} mt-1`} value={draft.ceremonyVenue} onChange={(e) => set({ ceremonyVenue: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Ceremony address", "Dirección de la ceremonia")}<input className={`${input} mt-1`} value={draft.ceremonyAddress} onChange={(e) => set({ ceremonyAddress: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Reception venue", "Lugar de la recepción")}<input className={`${input} mt-1`} value={draft.receptionVenue} onChange={(e) => set({ receptionVenue: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Reception address", "Dirección de la recepción")}<input className={`${input} mt-1`} value={draft.receptionAddress} onChange={(e) => set({ receptionAddress: e.target.value })} /></label>
               <label className="block text-sm">
-                RSVPs close on <span className="text-[hsl(19_10%_55%)]">(optional)</span>
+                {tr("RSVPs close on", "Las confirmaciones cierran el")} <span className="text-[#526072]">({tr("optional", "opcional")})</span>
                 <input className={`${input} mt-1`} type="date" value={draft.rsvpClosesOn} onChange={(e) => set({ rsvpClosesOn: e.target.value })} />
               </label>
-              <label className="block text-sm">Dress code<input className={`${input} mt-1`} value={draft.dressCode} onChange={(e) => set({ dressCode: e.target.value })} /></label>
-              <label className="block text-sm">Dress code in Spanish<input className={`${input} mt-1`} value={draft.dressCodeEs} onChange={(e) => set({ dressCodeEs: e.target.value })} /></label>
-              <label className="block text-sm">A few words about the day<input className={`${input} mt-1`} value={draft.aboutText} onChange={(e) => set({ aboutText: e.target.value })} /></label>
-              <label className="block text-sm">Esas palabras en español<input className={`${input} mt-1`} value={draft.aboutTextEs} onChange={(e) => set({ aboutTextEs: e.target.value })} /></label>
-              <label className="block text-sm">Gift note<input className={`${input} mt-1`} value={draft.giftText} onChange={(e) => set({ giftText: e.target.value })} /></label>
-              <label className="block text-sm">Nota de regalos en español<input className={`${input} mt-1`} value={draft.giftTextEs} onChange={(e) => set({ giftTextEs: e.target.value })} /></label>
-              <label className="block text-sm">Photo upload link<input className={`${input} mt-1`} placeholder="https://" value={draft.photoUploadUrl} onChange={(e) => set({ photoUploadUrl: e.target.value })} /></label>
-              <label className="block text-sm">Hotel name <span className="text-[hsl(19_10%_55%)]">(optional)</span><input className={`${input} mt-1`} value={draft.hotelName} onChange={(e) => set({ hotelName: e.target.value })} /></label>
-              <label className="block text-sm">Hotel address<input className={`${input} mt-1`} value={draft.hotelAddress} onChange={(e) => set({ hotelAddress: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Dress code", "Vestimenta")}<input className={`${input} mt-1`} value={draft.dressCode} onChange={(e) => set({ dressCode: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Dress code in Spanish", "Vestimenta en español")}<input className={`${input} mt-1`} value={draft.dressCodeEs} onChange={(e) => set({ dressCodeEs: e.target.value })} /></label>
+              <label className="block text-sm">{tr("A few words about the day", "Unas palabras sobre el día")}<input className={`${input} mt-1`} value={draft.aboutText} onChange={(e) => set({ aboutText: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Those words in Spanish", "Esas palabras en español")}<input className={`${input} mt-1`} value={draft.aboutTextEs} onChange={(e) => set({ aboutTextEs: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Gift note", "Nota de regalos")}<input className={`${input} mt-1`} value={draft.giftText} onChange={(e) => set({ giftText: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Gift note in Spanish", "Nota de regalos en español")}<input className={`${input} mt-1`} value={draft.giftTextEs} onChange={(e) => set({ giftTextEs: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Photo upload link", "Enlace para fotos")}<input className={`${input} mt-1`} placeholder="https://" value={draft.photoUploadUrl} onChange={(e) => set({ photoUploadUrl: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Hotel name", "Nombre del hotel")} <span className="text-[#526072]">({tr("optional", "opcional")})</span><input className={`${input} mt-1`} value={draft.hotelName} onChange={(e) => set({ hotelName: e.target.value })} /></label>
+              <label className="block text-sm">{tr("Hotel address", "Dirección del hotel")}<input className={`${input} mt-1`} value={draft.hotelAddress} onChange={(e) => set({ hotelAddress: e.target.value })} /></label>
               <label className="block text-sm">
-                Site link
+                {tr("Site link", "Enlace del sitio")}
                 <div className="mt-1 flex items-center gap-2">
                   <span className="text-sm text-[hsl(19_10%_46%)]">/e/</span>
                   <input
@@ -274,34 +302,34 @@ export default function Wizard() {
 
           {step === 3 && (
             <div className="space-y-3">
-              <h1 className="font-display text-3xl">Package</h1>
+              <h1 className="brand-display text-3xl">{tr("Package", "Paquete")}</h1>
               <PackagePick
                 active={draft.package === "basic" && !draft.customDomain}
-                title="Basic · $100"
-                detail="Template site, dashboard, guest list, bilingual page."
+                title={tr("Basic · $100", "Básico · $100")}
+                detail={tr("Template site, dashboard, guest list, bilingual page.", "Sitio con plantilla, tablero, lista y página bilingüe.")}
                 onClick={() => set({ package: "basic", customDomain: false })}
               />
               <PackagePick
                 active={draft.package === "basic" && draft.customDomain}
-                title="Basic + domain · $125"
-                detail="We buy the domain for a year and connect it for you."
+                title={tr("Basic + domain · $125", "Básico + dominio · $125")}
+                detail={tr("We buy the domain for a year and connect it for you.", "Compramos el dominio por un año y lo conectamos.")}
                 onClick={() => set({ package: "basic", customDomain: true })}
               />
               <PackagePick
                 active={draft.package === "full_custom"}
-                title="Full custom · $250"
-                detail="We design it by hand. Tell us what you want."
+                title={tr("Full custom · $250", "Diseño a medida · $250")}
+                detail={tr("We design it by hand. Tell us what you want.", "Lo diseñamos a mano. Cuéntenos qué desea.")}
                 onClick={() => set({ package: "full_custom", customDomain: false })}
               />
               {(draft.customDomain || draft.package === "full_custom") && (
                 <label className="block text-sm">
-                  Desired domain
+                  {tr("Desired domain", "Dominio deseado")}
                   <input className={`${input} mt-1`} placeholder="mariaandluis.com" value={draft.desiredDomain} onChange={(e) => set({ desiredDomain: e.target.value })} data-testid="input-wizard-domain" />
                 </label>
               )}
               {draft.package === "full_custom" && (
                 <label className="block text-sm">
-                  Notes for the designer
+                  {tr("Notes for the designer", "Notas para el diseñador")}
                   <textarea className={`${input} mt-1`} rows={4} value={draft.notes} onChange={(e) => set({ notes: e.target.value })} data-testid="input-wizard-notes" />
                 </label>
               )}
@@ -310,13 +338,13 @@ export default function Wizard() {
 
           {step === 4 && (
             <div className="space-y-3" data-testid="wizard-review">
-              <h1 className="font-display text-3xl">Review</h1>
-              <p className="font-display text-2xl text-[hsl(346_33%_42%)]">{draft.honoree}</p>
-              <p className="text-sm">{draft.dateIso} · {draft.template === "wedding" ? "Wedding" : "Quinceañera"} template</p>
+              <h1 className="brand-display text-3xl">{tr("Review", "Revisión")}</h1>
+              <p className="brand-display text-2xl">{draft.honoree}</p>
+              <p className="text-sm">{draft.dateIso} · {templateName}</p>
               <p className="text-sm">/e/{slugify(draft.slug || draft.honoree)}</p>
-              <p className="text-sm">Due today: ${price}. You can preview before publishing.</p>
+              <p className="text-sm">{tr(`Due today: $${price}. You can preview before publishing.`, `Hoy: $${price}. Puede previsualizar antes de publicar.`)}</p>
               {draft.package === "full_custom" && (
-                <p className="text-sm italic">We'll follow up on the custom design. The template site is yours to use in the meantime.</p>
+                <p className="text-sm">{tr("We'll follow up on the custom design. The template site is yours to use in the meantime.", "Le escribimos sobre el diseño a medida. Mientras tanto puede usar la plantilla.")}</p>
               )}
             </div>
           )}
@@ -329,32 +357,35 @@ export default function Wizard() {
 
           <div className="mt-6 flex gap-2">
             {step > 0 && (
-              <button type="button" className="rounded-full border px-4 py-2.5 text-sm" onClick={() => setStep((s) => s - 1)}>
-                Back
+              <button type="button" className="rounded-full border border-[#d7dee7] px-4 py-2.5 text-sm" onClick={() => setStep((s) => s - 1)}>
+                {tr("Back", "Atrás")}
               </button>
             )}
             {step < 4 ? (
-              <button type="button" className="flex-1 rounded-full bg-[hsl(346_37%_48%)] px-4 py-2.5 text-sm text-white" onClick={next} data-testid="button-wizard-next">
-                Continue
+              <button type="button" className="brand-btn flex-1" onClick={next} data-testid="button-wizard-next">
+                {tr("Continue", "Continuar")}
               </button>
             ) : (
-              <button type="button" className="flex-1 rounded-full bg-[hsl(346_37%_48%)] px-4 py-2.5 text-sm text-white disabled:opacity-60" disabled={busy} onClick={submit} data-testid="button-wizard-pay">
-                {busy ? "Starting checkout…" : `Continue to payment · $${price}`}
+              <button type="button" className="brand-btn flex-1 disabled:opacity-60" disabled={busy} onClick={submit} data-testid="button-wizard-pay">
+                {busy ? tr("Starting checkout…", "Abriendo el pago…") : tr(`Continue to payment · $${price}`, `Continuar al pago · $${price}`)}
               </button>
             )}
           </div>
         </div>
       </div>
     </div>
+    </BrandShell>
   );
 }
 
 function TemplatePick({
+  id,
   active,
   title,
   detail,
   onClick,
 }: {
+  id: string;
   active: boolean;
   title: string;
   detail: string;
@@ -364,11 +395,11 @@ function TemplatePick({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-xl border px-4 py-4 text-left ${active ? "border-[hsl(346_37%_48%)] bg-[hsl(346_40%_97%)]" : "border-[hsl(27_25%_86%)]"}`}
-      data-testid={`button-template-${title.toLowerCase()}`}
+      className={`w-full rounded-xl border px-4 py-4 text-left ${active ? "border-[#142033] bg-[#f3f5f8]" : "border-[#d7dee7]"}`}
+      data-testid={`button-template-${id}`}
     >
-      <div className="font-display text-2xl">{title}</div>
-      <div className="text-sm text-[hsl(19_12%_40%)]">{detail}</div>
+      <div className="brand-display text-2xl">{title}</div>
+      <div className="text-sm text-[#526072]">{detail}</div>
     </button>
   );
 }
@@ -388,10 +419,10 @@ function PackagePick({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-xl border px-4 py-4 text-left ${active ? "border-[hsl(346_37%_48%)] bg-[hsl(346_40%_97%)]" : "border-[hsl(27_25%_86%)]"}`}
+      className={`w-full rounded-xl border px-4 py-4 text-left ${active ? "border-[#142033] bg-[#f3f5f8]" : "border-[#d7dee7]"}`}
     >
       <div className="font-medium">{title}</div>
-      <div className="text-sm text-[hsl(19_12%_40%)]">{detail}</div>
+      <div className="text-sm text-[#526072]">{detail}</div>
     </button>
   );
 }

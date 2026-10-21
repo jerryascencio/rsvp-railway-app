@@ -3,6 +3,7 @@ import type { EventRecord } from "@shared/schema";
 import { storage } from "./storage";
 import {
   parseJsonList,
+  normalizeTemplate,
   rsvpIsClosed,
   type HotelStop,
   type PublicEvent,
@@ -74,7 +75,7 @@ export function toPublicEvent(event: EventRecord): PublicEvent {
   return {
     id: event.id,
     slug: event.slug,
-    template: event.template === "wedding" ? "wedding" : "quince",
+    template: normalizeTemplate(event.template),
     status: event.status === "active" ? "active" : "draft",
     paid: !!event.paid,
     isLegacyRoot: !!event.isLegacyRoot,
