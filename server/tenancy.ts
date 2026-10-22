@@ -28,6 +28,13 @@ export function legacyHostSet(): Set<string> {
   );
 }
 
+/** `/e/<slug>` and `/e/<slug>/admin`. Null for every other path. */
+export function eventSlugFromPath(url: string): string | null {
+  const pathOnly = String(url || "").split("?")[0];
+  const match = pathOnly.match(/^\/e\/([a-z0-9-]{1,80})(?:\/|$)/);
+  return match ? match[1] : null;
+}
+
 export function eventSlugHeader(req: Request): string {
   const raw = req.headers["x-event-slug"];
   const value = Array.isArray(raw) ? raw[0] : raw;

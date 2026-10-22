@@ -12,6 +12,7 @@ import {
   normalizePlan,
   normalizeTemplate,
   planPriceCents,
+  LEAH_EVENT_ID,
   slugify,
   titleForKind,
   type EventPackage,
@@ -692,5 +693,20 @@ export function registerPlatformRoutes(app: Express) {
         customNotes: updated.customNotes,
       },
     });
+  });
+
+  app.post("/api/super/events/:id/delete", requireSuper, (req, res) => {
+    const event = storage.getEvent(String(req.params.id));
+    if (!event) return res.status(404).json({ message: "Event not found." });
+    if (event.isLegacyRoot || event.isDemo || event.id === LEAH_EVENT_ID || event.slug === "leah") {
+      return res.status(403).json({ message: "This event can't be deleted." });
+    }
+    const confirm = String(req.body?.confirm || "").trim();
+    if (confirm !== event.slug) {
+      return res.status(400).json({ message: `Type ${event.slug} to confirm.` });
+    }
+    const removed = storage.deleteEvent(event.id);
+    fs.rmSync(path.join(uploadRoot(), event.id), { recursive: true, force: true });
+    res.json({ ok: true, slug: event.slug, removed });
   });
 }

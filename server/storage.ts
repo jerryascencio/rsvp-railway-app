@@ -1009,6 +1009,47 @@ export class Storage {
       .find((s) => s.email.toLowerCase() === needle);
   }
 
+  /**
+   * Remove one event and the rows that exist only for it: guests, RSVPs,
+   * text and email logs, the host login, and payment orders. Does not touch
+   * the global settings row or the Studio login.
+   */
+  deleteEvent(eventId: string): {
+    guests: number;
+    responses: number;
+    messages: number;
+    emails: number;
+    hosts: number;
+    orders: number;
+  } {
+    const run = sqlite.transaction(() => {
+      const responsesDeleted = sqlite
+        .prepare(
+          `DELETE FROM responses WHERE event_id = ? OR guest_id IN (SELECT id FROM guests WHERE event_id = ?)`,
+        )
+        .run(eventId, eventId).changes;
+      const messages = sqlite
+        .prepare(
+          `DELETE FROM message_logs WHERE event_id = ? OR guest_id IN (SELECT id FROM guests WHERE event_id = ?)`,
+        )
+        .run(eventId, eventId).changes;
+      const emails = sqlite.prepare(`DELETE FROM email_logs WHERE event_id = ?`).run(eventId).changes;
+      const guestRows = sqlite.prepare(`DELETE FROM guests WHERE event_id = ?`).run(eventId).changes;
+      const hosts = sqlite.prepare(`DELETE FROM event_hosts WHERE event_id = ?`).run(eventId).changes;
+      const orderRows = sqlite.prepare(`DELETE FROM orders WHERE event_id = ?`).run(eventId).changes;
+      sqlite.prepare(`DELETE FROM events WHERE id = ?`).run(eventId);
+      return {
+        guests: guestRows,
+        responses: responsesDeleted,
+        messages,
+        emails,
+        hosts,
+        orders: orderRows,
+      };
+    });
+    return run();
+  }
+
   createSuper(email: string, passwordHash: string): SuperAdmin {
     return db
       .insert(superAdmins)

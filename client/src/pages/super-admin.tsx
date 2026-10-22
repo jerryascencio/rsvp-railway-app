@@ -85,6 +85,20 @@ export default function SuperAdmin() {
     await load();
   }
 
+  async function removeEvent(row: Row) {
+    const typed = window.prompt(
+      `Delete ${row.honoree || row.slug}? This removes the guest list, RSVPs, messages, host login, and payments. Type ${row.slug} to confirm.`,
+    );
+    if (typed === null) return;
+    setError(null);
+    try {
+      await api("POST", `/api/super/events/${row.id}/delete`, { confirm: typed.trim() });
+      await load();
+    } catch (err: any) {
+      setError(err?.message || "Couldn't delete that event.");
+    }
+  }
+
   if (!authed) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4" data-testid="page-super-login">
@@ -116,6 +130,7 @@ export default function SuperAdmin() {
           {totals.events} events · ${(totals.revenueCents / 100).toFixed(0)} collected · {totals.invited} invited.
           Sample sites are excluded from these totals.
         </p>
+        {error && <p className="mt-2 text-sm text-red-600" data-testid="text-super-error">{error}</p>}
         <div className="mt-4 overflow-x-auto rounded-xl border bg-white">
           <table className="min-w-[880px] w-full text-left text-sm">
             <thead className="border-b text-xs uppercase tracking-wide text-neutral-500">
@@ -168,6 +183,16 @@ export default function SuperAdmin() {
                   <td className="px-3 py-3 text-xs">
                     {row.households} households
                     <div>{row.invited} invited</div>
+                    {!row.isLegacyRoot && !row.isDemo && (
+                      <button
+                        type="button"
+                        className="mt-2 rounded border border-red-300 px-2 py-1 text-red-700"
+                        onClick={() => removeEvent(row)}
+                        data-testid={`button-delete-${row.slug}`}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
