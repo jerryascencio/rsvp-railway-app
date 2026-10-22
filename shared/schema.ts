@@ -31,6 +31,8 @@ export const guests = sqliteTable("guests", {
   /** Unix ms of last write to this row via storage.createGuest/updateGuest.
    *  Nullable so pre-existing rows don't need backfill. */
   updatedAt: integer("updated_at"),
+  /** Owning event. Empty only for rows not yet backfilled by the boot migration. */
+  eventId: text("event_id").notNull().default(""),
 });
 
 /** One extra household member. */
@@ -98,7 +100,10 @@ export const responses = sqliteTable("responses", {
    *  strings, length matches `attendees`. Nullable when the guest skipped
    *  the optional section. */
   placeCardNames: text("place_card_names"),
+  /** Meal or dietary answer from the public form. Blank when the event does not ask. */
+  meal: text("meal").notNull().default(""),
   updatedAt: integer("updated_at").notNull(),
+  eventId: text("event_id").notNull().default(""),
 });
 
 /** One row per iMessage link generated for a guest. We can't confirm iOS
@@ -109,10 +114,135 @@ export const messageLogs = sqliteTable("message_logs", {
   phone: text("phone").notNull(),
   body: text("body").notNull(),
   sentAt: integer("sent_at").notNull(),
+  eventId: text("event_id").notNull().default(""),
 });
 export type MessageLog = typeof messageLogs.$inferSelect;
 
+/** One row per guest on an email-everyone send. status is sent, failed, or skipped. */
+export const emailLogs = sqliteTable("email_logs", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().default(""),
+  guestId: text("guest_id").notNull().default(""),
+  blastId: text("blast_id").notNull().default(""),
+  email: text("email").notNull().default(""),
+  subject: text("subject").notNull().default(""),
+  body: text("body").notNull().default(""),
+  status: text("status").notNull().default("sent"),
+  error: text("error").notNull().default(""),
+  sentAt: integer("sent_at").notNull(),
+});
+export type EmailLog = typeof emailLogs.$inferSelect;
+
 export const admins = sqliteTable("admins", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+});
+
+/** One row per celebration. Leah's original site is the legacy root event. */
+export const events = sqliteTable("events", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull().unique(),
+  isLegacyRoot: integer("is_legacy_root").notNull().default(0),
+  /** Sample invitation. Published, but omitted from revenue and studio totals. */
+  isDemo: integer("is_demo").notNull().default(0),
+  /** draft (preview only) or active (public). */
+  status: text("status").notNull().default("draft"),
+  /** basic ($25), plus ($100, domain and messages), or full_custom ($250). */
+  package: text("package").notNull().default("basic"),
+  /** quince (floral) or wedding (elegant). */
+  template: text("template").notNull().default("quince"),
+  paid: integer("paid").notNull().default(0),
+  honoree: text("honoree").notNull().default(""),
+  partnerName: text("partner_name").notNull().default(""),
+  eventKind: text("event_kind").notNull().default("quinceanera"),
+  familyLine: text("family_line").notNull().default(""),
+  title: text("title").notNull().default(""),
+  dateIso: text("date_iso").notNull().default(""),
+  dateLong: text("date_long").notNull().default(""),
+  dateLongEs: text("date_long_es").notNull().default(""),
+  dayName: text("day_name").notNull().default(""),
+  dayNameEs: text("day_name_es").notNull().default(""),
+  day: text("day").notNull().default(""),
+  year: text("year").notNull().default(""),
+  ceremonyLabel: text("ceremony_label").notNull().default("Mass"),
+  ceremonyLabelEs: text("ceremony_label_es").notNull().default("Misa"),
+  ceremonyTime: text("ceremony_time").notNull().default(""),
+  ceremonyVenue: text("ceremony_venue").notNull().default(""),
+  ceremonyAddress: text("ceremony_address").notNull().default(""),
+  receptionTime: text("reception_time").notNull().default(""),
+  receptionVenue: text("reception_venue").notNull().default(""),
+  receptionAddress: text("reception_address").notNull().default(""),
+  rsvpByLabel: text("rsvp_by_label").notNull().default(""),
+  rsvpByLabelEs: text("rsvp_by_label_es").notNull().default(""),
+  /** YYYY-MM-DD. RSVPs are accepted through this calendar day (Pacific). Blank = open. */
+  rsvpClosesOn: text("rsvp_closes_on").notNull().default(""),
+  photoUploadUrl: text("photo_upload_url").notNull().default(""),
+  dressCode: text("dress_code").notNull().default(""),
+  dressCodeEs: text("dress_code_es").notNull().default(""),
+  giftText: text("gift_text").notNull().default(""),
+  giftTextEs: text("gift_text_es").notNull().default(""),
+  aboutText: text("about_text").notNull().default(""),
+  aboutTextEs: text("about_text_es").notNull().default(""),
+  familyLineEs: text("family_line_es").notNull().default(""),
+  ceremonyMapUrl: text("ceremony_map_url").notNull().default(""),
+  receptionMapUrl: text("reception_map_url").notNull().default(""),
+  parkingText: text("parking_text").notNull().default(""),
+  parkingTextEs: text("parking_text_es").notNull().default(""),
+  hostNote: text("host_note").notNull().default(""),
+  hostNoteEs: text("host_note_es").notNull().default(""),
+  contactEmail: text("contact_email").notNull().default(""),
+  contactPhone: text("contact_phone").notNull().default(""),
+  contactNote: text("contact_note").notNull().default(""),
+  contactNoteEs: text("contact_note_es").notNull().default(""),
+  mealPrompt: text("meal_prompt").notNull().default(""),
+  mealPromptEs: text("meal_prompt_es").notNull().default(""),
+  hotelsJson: text("hotels_json").notNull().default("[]"),
+  scheduleJson: text("schedule_json").notNull().default("[]"),
+  photosJson: text("photos_json").notNull().default("[]"),
+  faqsJson: text("faqs_json").notNull().default("[]"),
+  partyJson: text("party_json").notNull().default("[]"),
+  /** Comma-separated hostnames that should serve this event at `/`. */
+  hostnames: text("hostnames").notNull().default(""),
+  desiredDomain: text("desired_domain").notNull().default(""),
+  customDomain: integer("custom_domain").notNull().default(0),
+  customNotes: text("custom_notes").notNull().default(""),
+  smtpUser: text("smtp_user").notNull().default(""),
+  smtpPass: text("smtp_pass").notNull().default(""),
+  notifyEmail: text("notify_email").notNull().default(""),
+  stripeSessionId: text("stripe_session_id"),
+  amountCents: integer("amount_cents").notNull().default(0),
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const eventHosts = sqliteTable("event_hosts", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull(),
+  email: text("email").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const orders = sqliteTable("orders", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull(),
+  package: text("package").notNull(),
+  /** purchase or upgrade. An upgrade charges the difference and then changes the event plan. */
+  kind: text("kind").notNull().default("purchase"),
+  customDomain: integer("custom_domain").notNull().default(0),
+  desiredDomain: text("desired_domain").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  amountCents: integer("amount_cents").notNull(),
+  currency: text("currency").notNull().default("usd"),
+  /** pending | paid */
+  status: text("status").notNull().default("pending"),
+  stripeSessionId: text("stripe_session_id"),
+  createdAt: integer("created_at").notNull(),
+  paidAt: integer("paid_at"),
+});
+
+export const superAdmins = sqliteTable("super_admins", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
@@ -141,6 +271,10 @@ export type RsvpResponse = typeof responses.$inferSelect;
 export type InsertResponse = typeof responses.$inferInsert;
 export type Admin = typeof admins.$inferSelect;
 export type Settings = typeof settings.$inferSelect;
+export type EventRecord = typeof events.$inferSelect;
+export type EventHost = typeof eventHosts.$inferSelect;
+export type Order = typeof orders.$inferSelect;
+export type SuperAdmin = typeof superAdmins.$inferSelect;
 
 /** Guest joined with its response, as returned by the API. */
 export type GuestWithResponse = Guest & {

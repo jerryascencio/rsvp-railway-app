@@ -1,6 +1,8 @@
 # Leah Adalynn Espinoza's Quinceañera — RSVP App
 
-A fullstack RSVP website for the Quinceañera of Leah Adalynn Espinoza (Friday, September 18, 2026). Guests visit the public page, type their name, phone, or email into a single search box, find their invitation, and split their party into "attending" and "not attending" headcounts. Every submission is saved to SQLite and triggers up to two emails through Gmail: a running-totals report to the family's organizer and a warm confirmation to the guest (only when they provide an email). The host dashboard at `/#/admin` is password protected and provides live totals, a full guest table with inline editing, CSV import/export, and email settings.
+A fullstack RSVP website for the Quinceañera of Leah Adalynn Espinoza (Friday, September 18, 2026).
+
+> **Multi-event platform (phase 1)** lives on a feature branch and must be deployed as a **separate Railway service**. `main` keeps auto-deploying the live Leah site. See [Platform deployment](#platform-deployment-separate-railway-service) below. Do not point `www.leahaespinoza.com` at the platform service. Guests visit the public page, type their name, phone, or email into a single search box, find their invitation, and split their party into "attending" and "not attending" headcounts. Every submission is saved to SQLite and triggers up to two emails through Gmail: a running-totals report to the family's organizer and a warm confirmation to the guest (only when they provide an email). The host dashboard at `/#/admin` is password protected and provides live totals, a full guest table with inline editing, CSV import/export, and email settings.
 
 Stack: Express 5 + Vite + React 18 + Tailwind CSS 3 + shadcn/ui + Drizzle ORM (better-sqlite3) + nodemailer.
 
@@ -160,6 +162,69 @@ server/            Express API
 shared/schema.ts   Drizzle tables, shared types, event constants
 script/build.ts    Vite client build + esbuild server bundle
 ```
+
+---
+
+## Platform deployment (separate Railway service)
+
+Phase 1 turns this app into a small RSVP service other families can buy, without changing Leah's live site.
+
+- **Basic** — $25 (`STRIPE_PRICE_BASIC`). Self-serve. The host picks a template, uploads guests, and manages RSVPs. Hit em up and email-everyone stay locked. The API returns 403 with an upgrade message.
+- **Plus** — $100 (`STRIPE_PRICE_PLUS`). Rename it in `PLAN_PLUS_NAME` in `shared/platform.ts`. Includes Basic, a custom domain we buy for a year (this replaces the old +$25 add-on), Hit em up, and email-everyone. Emails go out through that event's Gmail app password, are limited per event (`EMAIL_BLAST_PER_HOUR`, default 2), and are written to `email_logs`.
+- **Full custom** — $250 (`STRIPE_PRICE_CUSTOM`). Everything in Plus, with a design we make. The order stores their notes. Fulfillment is manual. They can still publish the template site.
+- Upgrades from the dashboard charge the difference when the event is already paid (Basic to Plus $75, Basic to Full custom $225, Plus to Full custom $150). An unpaid draft is repriced to the new plan's full amount. Leah's event and the sample sites keep every feature. Studio revenue sums `amountCents` for paid non-demo events (including upgrade amounts added onto the original charge) and the legacy root event. Unpaid quotes are not revenue.
+- Unpaid events stay a private preview. Publishing requires a paid order.
+- RSVPs can be closed on a date. The public form is replaced and `POST /api/rsvp` rejects new replies.
+- Guest search is rate-limited (default 30 lookups per minute per IP per event).
+
+Leah's existing database migrates on boot into an event with slug `leah`. The migration only adds tables and columns and backfills `event_id`. It does not drop or rewrite the original tables. On `www.leahaespinoza.com` the site still renders at `/` and the admin stays at `/#/admin`. Other events are at `/e/<slug>`.
+
+A platform database (one with no legacy root event) seeds six published sample sites: `demo-elegant`, `demo-fiesta`, `demo-minimal`, `demo-garden`, `demo-noche`, and `demo-confetti`. They are marked `is_demo`, paid so guests can open them, and stored with a $0 amount. Studio totals skip them. RSVPs on a sample are saved and not emailed. Each boot refreshes the sample copy so an existing volume picks up new sections. It does not add a second guest list, and it does not run when a legacy root event is already present.
+
+### New environment variables
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `STRIPE_SECRET_KEY` | for real checkout | Secret key for the Stripe account **RSVP Sites by Mission** (test mode until launch). Not the CRM account. If empty, checkout is a clearly labeled local mock that marks the order paid. Jerry will paste the keys in later. |
+| `STRIPE_WEBHOOK_SECRET` | for real checkout | Signing secret for `POST /api/stripe/webhook` (`checkout.session.completed`). |
+| `STRIPE_PUBLISHABLE_KEY` | no | Exposed to the browser via `/api/billing/config`. Hosted Checkout does not require it. |
+| `STRIPE_PRICE_BASIC` | no | Price id for the $25 Basic plan. If empty, Checkout uses inline `price_data` at $25. |
+| `STRIPE_PRICE_PLUS` | no | Price id for the $100 Plus plan. If empty, Checkout uses inline `price_data` at $100. Upgrades always use inline `price_data` for the difference, even when these price ids are set. |
+| `STRIPE_PRICE_CUSTOM` | no | Price id for the $250 Full custom plan. If empty, Checkout uses inline `price_data` at $250. |
+| `EMAIL_BLAST_PER_HOUR` | no | Email-everyone sends per event per hour. Default 2. Clamped from 1 to 20. |
+| `PUBLIC_PLATFORM_URL` | no | Origin used in Checkout return URLs, e.g. `https://rsvp.example.com`. If empty, the request host is used. **Do not set this to Leah's domain.** |
+| `SUPER_ADMIN_EMAIL` | for Studio | Creates Jerry's `/super` login on first boot. |
+| `SUPER_ADMIN_PASSWORD` | for Studio | At least 8 characters. Changing it later does not rotate an existing password. |
+| `LEGACY_ROOT_HOSTS` | no | Hosts that serve the original event at `/`. Default `www.leahaespinoza.com,leahaespinoza.com`. Leave unset on the new service. |
+| `SEARCH_RATE_LIMIT` | no | Searches per IP per event per minute. Default 30. |
+| `UPLOAD_DIR` | no | Photo directory. Default is `uploads` next to the SQLite file (`/data/uploads` on Railway). |
+
+Gmail for each new event is still entered in that event's dashboard (Settings), not in env vars. Leah's sender stays in the original settings row.
+
+### Railway
+
+Use a **new service and a new volume**. Do not attach Leah's `/data` volume and do not change the service that deploys `main`.
+
+1. In Railway, create a new project or a new service in a project that does **not** auto-deploy `main` to `leahaespinoza.com`.
+2. Connect the repo and set the deploy branch to this platform branch (not `main`) until you are ready to cut over. `main` must keep deploying the current Leah service unchanged.
+3. Nixpacks, Node 20.19 or newer (Vite 7 will not build on 20.18), `npm run build`, and `npm start` are already configured. Keep the service at **one replica** (SQLite).
+4. Add a volume mounted at `/data` and set `DATABASE_PATH=/data/data.db`. This is a new empty file. It must not be Leah's database.
+5. Set `SUPER_ADMIN_EMAIL`, `SUPER_ADMIN_PASSWORD`, and the **RSVP Sites by Mission** Stripe test keys (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and optionally `STRIPE_PUBLISHABLE_KEY` plus price ids). Point that account's webhook at `https://<platform-domain>/api/stripe/webhook` for `checkout.session.completed`. Until the keys are in the service, checkout uses the local mock path.
+6. Generate a **new** public domain. Do not add `leahaespinoza.com` or `www` to this service.
+7. Open `/`, create a test event, pay in Stripe test mode (or use the mock path if keys are absent), publish, import a CSV, and submit an RSVP.
+8. Studio is at `/super`. To serve an event on a custom hostname later: add the domain in Railway networking, set DNS, then save that hostname on the event in Studio. The app will serve that event at `/` for that host.
+
+`/api/health` stays the healthcheck. Photos live on the same volume as the database.
+
+Local check against a copy of a legacy database:
+
+```bash
+# build a throwaway db with the old single-event schema, then:
+DATABASE_PATH=/tmp/leah-copy.db PORT=5055 npm run dev
+curl -s -H 'Host: www.leahaespinoza.com' http://127.0.0.1:5055/api/site
+```
+
+`mode` should be `legacy`, and guest search on that host should return the migrated households. `http://127.0.0.1:5055/` without that Host header is the marketing site. Leah's page on this machine is also at `/e/leah`.
 
 ---
 

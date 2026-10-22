@@ -1,3 +1,5 @@
+import { getEventSlug } from "./event-scope";
+
 const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
 
 /**
@@ -8,8 +10,36 @@ const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
  */
 let authToken: string | null = null;
 
+const TOKEN_KEY = "rsvp_host_token";
+
 export function setAuthToken(token: string | null) {
   authToken = token;
+  // Platform hosts survive a refresh. Leah's original admin stays memory-only.
+  try {
+    if (!getEventSlug()) return;
+    if (token) sessionStorage.setItem(TOKEN_KEY, token);
+    else sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* sandboxed contexts can block storage */
+  }
+}
+
+export function restoreAuthToken() {
+  if (authToken || !getEventSlug()) return;
+  try {
+    const saved = sessionStorage.getItem(TOKEN_KEY);
+    if (saved) authToken = saved;
+  } catch {
+    /* ignore */
+  }
+}
+
+export function authHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+  const slug = getEventSlug();
+  if (slug) headers["X-Event-Slug"] = slug;
+  return headers;
 }
 
 export function getAuthToken() {
@@ -21,9 +51,8 @@ export async function api<T = any>(
   url: string,
   body?: unknown,
 ): Promise<T> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...authHeaders() };
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (authToken) headers.Authorization = `Bearer ${authToken}`;
   const res = await fetch(`${API_BASE}${url}`, {
     method,
     headers,

@@ -5,6 +5,8 @@ import viteConfig from "../vite.config";
 import fs from "node:fs";
 import path from "node:path";
 import { nanoid } from "nanoid";
+import { storage } from "./storage";
+import { eventSlugFromPath } from "./tenancy";
 
 const viteLogger = createLogger();
 
@@ -35,6 +37,10 @@ export async function setupVite(server: Server, app: Express) {
     const url = req.originalUrl;
 
     try {
+      const slug = eventSlugFromPath(url);
+      if (slug && !storage.getEventBySlug(slug)) {
+        return res.status(404).type("html").send("<!doctype html><title>Not found</title><p>This invitation doesn't exist.</p>");
+      }
       const clientTemplate = path.resolve(
         import.meta.dirname,
         "..",

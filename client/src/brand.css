@@ -1,0 +1,241 @@
+/* Marketing and starter-template chrome. Leah's invitation does not use these classes. */
+
+.brand-site {
+  --ink: #142033;
+  --muted: #526072;
+  --paper: #f3f5f8;
+  --card: #ffffff;
+  --line: #d7dee7;
+  --coral: #e23d2b;
+  --coral-deep: #c43222;
+  --marigold: #e8a317;
+  --teal: #0f766e;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Outfit, ui-sans-serif, system-ui, sans-serif;
+}
+
+.brand-display {
+  font-family: Fraunces, Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+.brand-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--coral);
+  color: white;
+  font-size: 0.84rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 0.85rem 1.25rem;
+}
+
+.brand-btn:hover {
+  background: var(--coral-deep);
+}
+
+.brand-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 0.8rem 1.15rem;
+}
+
+.brand-input {
+  width: 100%;
+  border-radius: 0.7rem;
+  border: 1px solid var(--line);
+  background: white;
+  padding: 0.75rem 0.85rem;
+  font-size: 1rem;
+  outline: none;
+}
+
+.brand-input:focus {
+  border-color: #142033;
+}
+
+.invite-theme-wedding {
+  background: #f6f3ee;
+}
+
+.invite-theme-elegant {
+  background: #f4efe6;
+  color: #1c1914;
+}
+
+.invite-theme-elegant .font-serif {
+  font-family: Fraunces, Georgia, serif;
+  font-weight: 500;
+}
+
+.invite-theme-fiesta {
+  background: #fff6ea;
+  color: #1f1308;
+}
+
+.invite-theme-fiesta::before {
+  content: "";
+  display: block;
+  height: 10px;
+  background: linear-gradient(90deg, #e23d2b, #f0b429 48%, #0f766e);
+}
+
+.invite-theme-fiesta .font-serif {
+  font-family: Outfit, ui-sans-serif, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.invite-theme-minimal {
+  background: #ffffff;
+  color: #111111;
+}
+
+.invite-theme-minimal::before {
+  content: "";
+  display: block;
+  height: 3px;
+  background: #111111;
+}
+
+.invite-theme-minimal .font-serif {
+  font-family: Outfit, ui-sans-serif, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+}
+
+.invite-theme-elegant .invite-card,
+.invite-theme-fiesta .invite-card,
+.invite-theme-minimal .invite-card,
+.invite-theme-wedding .invite-card,
+.invite-theme-garden .invite-card {
+  border: 1px solid #e6dfd4;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.invite-theme-elegant .invite-kicker,
+.invite-theme-wedding .invite-kicker,
+.invite-theme-garden .invite-kicker {
+  color: #8a7350;
+}
+
+.invite-theme-elegant .invite-btn,
+.invite-theme-wedding .invite-btn,
+.invite-theme-minimal .invite-btn {
+  background: #1c1914;
+  color: #fff;
+}
+
+.invite-theme-fiesta .invite-btn {
+  background: #c2410c;
+  color: #fff;
+}
+
+.invite-theme-garden {
+  background:
+    radial-gradient(circle at 12% 8%, rgba(232, 180, 184, 0.45), transparent 28%),
+    radial-gradient(circle at 90% 0%, rgba(168, 196, 168, 0.4), transparent 32%),
+    #f4f7f2;
+  color: #1c2b24;
+  font-family: Nunito, Outfit, sans-serif;
+}
+
+.invite-theme-garden .font-serif {
+  font-family: "Libre Baskerville", Georgia, serif;
+  font-weight: 400;
+}
+
+.invite-theme-garden .invite-btn {
+  background: #1f4d3a;
+  color: #fff;
+}
+
+.invite-theme-noche {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(212, 180, 131, 0.16), transparent 36%),
+    #14110e;
+  color: #f4efe4;
+  font-family: Outfit, sans-serif;
+}
+
+.invite-theme-noche .font-serif {
+  font-family: Cinzel, Georgia, serif;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.invite-theme-noche .invite-card {
+  border: 1px solid rgba(212, 180, 131, 0.45);
+  background: #221c16;
+  color: #f4efe4;
+}
+
+.invite-theme-noche .invite-kicker,
+.invite-theme-noche .invite-lang {
+  color: #d4b483;
+}
+
+.invite-theme-noche .invite-lang {
+  background: transparent;
+  border-color: rgba(212, 180, 131, 0.5);
+}
+
+.invite-theme-noche input,
+.invite-theme-noche textarea {
+  background: #1a1612;
+  color: #f4efe4;
+  border-color: rgba(212, 180, 131, 0.35);
+}
+
+.invite-theme-noche .invite-btn {
+  background: #d4b483;
+  color: #14110e;
+}
+
+.invite-theme-confetti {
+  background:
+    radial-gradient(circle at 8% 12%, rgba(255, 90, 122, 0.18), transparent 22%),
+    radial-gradient(circle at 92% 18%, rgba(61, 126, 255, 0.16), transparent 24%),
+    #fff8fb;
+  color: #24182a;
+  font-family: Nunito, Outfit, sans-serif;
+}
+
+.invite-theme-confetti::before {
+  content: "";
+  display: block;
+  height: 12px;
+  background: repeating-linear-gradient(
+    90deg,
+    #ff5a7a 0 28px,
+    #ffd23f 28px 56px,
+    #3d7eff 56px 84px,
+    #2fbf71 84px 112px
+  );
+}
+
+.invite-theme-confetti .font-serif {
+  font-family: Fredoka, Nunito, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.invite-theme-confetti .invite-card {
+  border: 1px solid #ffd0dc;
+  background: #fff;
+}
+
+.invite-theme-confetti .invite-btn {
+  background: #ff5a7a;
+  color: #fff;
+}

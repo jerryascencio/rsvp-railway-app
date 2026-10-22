@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Original sprig on warm paper">
+  <rect width="800" height="800" fill="#f7f1e6"/>
+  <path d="M400 620c0-180 10-280 0-420" fill="none" stroke="#9a7b4f" stroke-width="2"/>
+  <path d="M400 460c-70-20-110-70-130-120M400 400c70-10 120-60 140-120M400 340c-50 10-90-20-110-70" fill="none" stroke="#9a7b4f" stroke-width="1.6"/>
+  <circle cx="400" cy="180" r="8" fill="#9a7b4f"/>
+</svg>

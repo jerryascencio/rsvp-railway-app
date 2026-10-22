@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Original papel picado flags">
+  <rect width="800" height="800" fill="#fff6ea"/>
+  <g fill="#e23d2b">
+    <path d="M80 160h140l-20 90H100z"/>
+    <path d="M250 160h140l-20 90H270z"/>
+    <path d="M420 160h140l-20 90H440z"/>
+    <path d="M590 160h140l-20 90H610z"/>
+  </g>
+  <g fill="#f0b429">
+    <circle cx="150" cy="200" r="10"/>
+    <circle cx="320" cy="200" r="10"/>
+    <circle cx="490" cy="200" r="10"/>
+    <circle cx="660" cy="200" r="10"/>
+  </g>
+  <circle cx="400" cy="480" r="90" fill="#0f766e"/>
+  <circle cx="400" cy="480" r="48" fill="#f0b429"/>
+  <circle cx="400" cy="480" r="18" fill="#fff6ea"/>
+</svg>

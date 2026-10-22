@@ -86,6 +86,11 @@ function householdLabel(
 
 /* ---------------------------------------------------------------- shell */
 
+function hostLoginHref() {
+  const match = window.location.pathname.match(/^\/e\/([^/]+)/);
+  return match ? `/e/${match[1]}/admin` : "/admin";
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   return (
@@ -100,7 +105,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             {t("footer.love")}
           </p>
           <Link
-            href="/admin"
+            href={hostLoginHref()}
             className="label-caps mt-3 inline-block text-[10px] opacity-60 hover:opacity-100"
             data-testid="link-admin"
           >
@@ -127,7 +132,7 @@ function WideShell({ children }: { children: React.ReactNode }) {
             {t("footer.love")}
           </p>
           <Link
-            href="/admin"
+            href={hostLoginHref()}
             className="label-caps mt-3 inline-block text-[10px] opacity-60 hover:opacity-100"
             data-testid="link-admin"
           >
@@ -323,6 +328,19 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState<Submitted | null>(null);
+  const [rsvpClosed, setRsvpClosed] = useState(false);
+  const [closedOn, setClosedOn] = useState("");
+
+  useEffect(() => {
+    api<{ rsvpClosed?: boolean; rsvpClosesOn?: string }>("GET", "/api/event")
+      .then((data) => {
+        setRsvpClosed(!!data.rsvpClosed);
+        setClosedOn(data.rsvpClosesOn || "");
+      })
+      .catch(() => {
+        /* the form stays available if the status call fails */
+      });
+  }, []);
 
   const people = (n: number) => (n === 1 ? t("rsvp.person") : t("rsvp.people"));
 
@@ -404,7 +422,7 @@ export default function Home() {
     if (sameKeys) return;
     // Preserve any prior yes/no answers; add null for new keys; drop removed keys.
     const next: Record<string, "yes" | "no" | null> = {};
-    for (const k of activeKeys) next[k] = personStatus[k] ?? null;
+    for (const k of Array.from(activeKeys)) next[k] = personStatus[k] ?? null;
     setPersonStatus(next);
     // Recompute attending/declined based on preserved answers.
     let a = 0;
@@ -644,7 +662,19 @@ export default function Home() {
       <div className="mx-auto w-full max-w-2xl">
         <Hero />
 
-        {/* search */}
+        {rsvpClosed ? (
+          <Card testId="card-rsvp-closed">
+            <div className="text-center">
+              <p className="label-caps">{t("closed.eyebrow")}</p>
+              <h3 className="font-script mt-2 text-4xl text-[hsl(346_37%_56%)]">{t("closed.heading")}</h3>
+              <p className="font-display mx-auto mt-4 max-w-md text-base italic leading-relaxed text-[hsl(19_17%_32%)]">
+                {t("closed.body", { date: closedOn || t("hero.rsvpByDate") })}
+              </p>
+            </div>
+          </Card>
+        ) : null}
+        {!rsvpClosed && (
+        <>
         <Card testId="card-search">
           <div className="text-center">
             <p className="label-caps">{t("search.eyebrow")}</p>
@@ -1202,6 +1232,8 @@ export default function Home() {
               </p>
             </form>
           </Card>
+        )}
+        </>
         )}
       </div>
 

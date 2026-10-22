@@ -1,12 +1,34 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express, Request, Response } from "express";
 import type { Server } from "node:http";
 import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { storage } from "./storage";
-import { sendRsvpEmails, sendTestEmail } from "./mailer";
+import { sendPlainEmail, sendRsvpEmails, sendTestEmail } from "./mailer";
 import { normalizePhone, additionalNamesSchema } from "@shared/schema";
-import type { AdditionalName } from "@shared/schema";
+import type { AdditionalName, Guest, Settings } from "@shared/schema";
+import { describePlan, planAllows, rsvpIsClosed, upgradeRequired } from "@shared/platform";
+import { registerPlatformRoutes } from "./platform-routes";
+import {
+  clientIp,
+  eventPublicUrl,
+  legacyHostSet,
+  rateLimit,
+  requestHost,
+  resolveRequestEvent,
+  searchLimit,
+} from "./tenancy";
+import {
+  COOKIE,
+  currentSession,
+  isEventMember,
+  makeSessionToken,
+  requireAdmin,
+  sessionEmail,
+  setSessionCookie,
+  eventFromReq,
+  authFromReq,
+} from "./auth";
 
 /** Max number of extra household members supported (party size 10). */
 const MAX_ADDITIONAL = 9;
@@ -89,55 +111,46 @@ function readAdditionalNames(v: unknown): AdditionalName[] | undefined {
     .slice(0, MAX_ADDITIONAL);
 }
 
-const SESSION_DAYS = 14;
-const COOKIE = "qc_session";
-
-function sessionSecret() {
-  return process.env.SESSION_SECRET || storage.getSettings().sessionSecret;
+function emailBlastLimit(): number {
+  const n = Number(process.env.EMAIL_BLAST_PER_HOUR || 2);
+  if (!Number.isFinite(n) || n <= 0) return 2;
+  return Math.min(20, Math.max(1, Math.round(n)));
 }
 
-function sign(payload: string, secret: string) {
-  return createHmac("sha256", secret).update(payload).digest("hex");
+function mergeGuestFields(template: string, guest: Guest, link: string): string {
+  const values: Record<string, string> = {
+    "name for text": guest.nameForText || guest.partyName || guest.firstName,
+    "name of party": guest.partyName || `${guest.firstName} ${guest.lastName}`.trim(),
+    "first name": guest.firstName,
+    "last name": guest.lastName,
+    "full names": `${guest.firstName} ${guest.lastName}`.trim(),
+    "total invites": String(guest.invites),
+    invites: String(guest.invites),
+    phone: guest.phone,
+    email: guest.email || "",
+    "rsvp link": link,
+    link,
+  };
+  return template.replace(/\{([^}]+)\}/g, (_m, key) => values[String(key).trim().toLowerCase()] ?? `{${key}}`);
 }
 
-function makeToken(adminId: string): string {
-  const secret = sessionSecret();
-  const expiresAt = Date.now() + SESSION_DAYS * 86400_000;
-  const payload = Buffer.from(JSON.stringify({ adminId, expiresAt })).toString("base64url");
-  return `${payload}.${sign(payload, secret)}`;
+function deliverableEmail(raw: string | null | undefined): string {
+  const email = String(raw || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "";
+  if (/@example\.(com|org|net)$/.test(email)) return "";
+  return email;
 }
 
-function readToken(token: string | undefined): { adminId: string } | null {
-  if (!token || !token.includes(".")) return null;
-  const [payload, sig] = token.split(".");
-  const secret = sessionSecret();
-  const expected = sign(payload, secret);
-  try {
-    if (
-      sig.length !== expected.length ||
-      !timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
-    )
-      return null;
-    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (!data.adminId || !data.expiresAt || data.expiresAt < Date.now()) return null;
-    if (!storage.getAdmin(data.adminId)) return null;
-    return { adminId: data.adminId };
-  } catch {
-    return null;
-  }
-}
-
-function currentAdmin(req: Request): { adminId: string } | null {
-  const header = req.headers.authorization;
-  const bearer = header && header.startsWith("Bearer ") ? header.slice(7) : undefined;
-  return readToken(bearer) || readToken((req as any).cookies?.[COOKIE]);
-}
-
-function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const session = currentAdmin(req);
-  if (!session) return res.status(401).json({ message: "Not authorized" });
-  (req as any).adminId = session.adminId;
-  next();
+function mailSettings(eventId: string): Settings {
+  const event = storage.getEvent(eventId);
+  const base = storage.getSettings();
+  if (!event || event.isLegacyRoot) return base;
+  return {
+    ...base,
+    smtpUser: event.smtpUser,
+    smtpPass: event.smtpPass,
+    notifyEmail: event.notifyEmail || event.smtpUser,
+  };
 }
 
 /** Minimal CSV parser handling quoted fields. */
@@ -180,21 +193,43 @@ function csvEscape(v: unknown) {
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   app.use(cookieParser());
   storage.getSettings(); // ensure settings row + session secret exist
+  registerPlatformRoutes(app);
 
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, setupComplete: storage.adminCount() > 0 });
   });
 
   // ---------------- public ----------------
-  app.get("/api/event", (_req, res) => {
+  app.get("/api/event", (req, res) => {
     const s = storage.getSettings();
-    res.json({ setupComplete: !!s.setupComplete, adminExists: storage.adminCount() > 0 });
+    const event = resolveRequestEvent(req);
+    const onLegacy = legacyHostSet().has(requestHost(req));
+    res.json({
+      setupComplete: !!s.setupComplete,
+      adminExists: storage.adminCount() > 0,
+      rsvpClosed: event ? rsvpIsClosed(event.rsvpClosesOn) : false,
+      rsvpClosesOn: event?.rsvpClosesOn || "",
+      published: event ? event.status === "active" : onLegacy,
+      slug: event?.slug || (onLegacy ? "leah" : null),
+    });
   });
 
   app.get("/api/guests", (req, res) => {
     const q = String(req.query.q || "").trim();
     if (!q) return res.json({ matches: [] });
-    const matches = storage.searchGuests(q).map((g) => {
+    const event = resolveRequestEvent(req);
+    if (!event) return res.status(404).json({ message: "Event not found." });
+    const session = currentSession(req);
+    const live = event.status === "active" && (!!event.paid || !!event.isLegacyRoot);
+    if (!live && !isEventMember(session, event.id)) {
+      return res.status(403).json({ message: "This invitation isn't published yet." });
+    }
+    if (!rateLimit(`search:${event.id}:${clientIp(req)}`, searchLimit(), 60_000)) {
+      return res.status(429).json({
+        message: "Too many searches. Please wait a moment and try again.",
+      });
+    }
+    const matches = storage.searchGuests(q, event.id).map((g) => {
       const r = storage.getResponseByGuest(g.id);
       return {
         id: g.id,
@@ -210,7 +245,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         email: g.email,
         additionalNames: g.additionalNames,
         existing: r
-          ? { attendees: r.attendees, declinedCount: r.declinedCount, note: r.note, guestEmail: r.guestEmail }
+          ? { attendees: r.attendees, declinedCount: r.declinedCount, note: r.note, guestEmail: r.guestEmail, meal: r.meal || "" }
           : null,
       };
     });
@@ -218,8 +253,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/api/rsvp", async (req, res) => {
-    const { guestId, note } = req.body || {};
-    const guest = guestId ? storage.getGuest(String(guestId)) : undefined;
+    const event = resolveRequestEvent(req);
+    if (!event) return res.status(404).json({ message: "Event not found." });
+    const session = currentSession(req);
+    const live = event.status === "active" && (!!event.paid || !!event.isLegacyRoot);
+    if (!live && !isEventMember(session, event.id)) {
+      return res.status(403).json({ message: "This invitation isn't published yet." });
+    }
+    if (rsvpIsClosed(event.rsvpClosesOn)) {
+      return res.status(403).json({
+        code: "rsvp_closed",
+        message: "RSVPs are closed.",
+      });
+    }
+    const { guestId, note, meal } = req.body || {};
+    const guest = guestId ? storage.getGuest(String(guestId), event.id) : undefined;
     if (!guest) return res.status(404).json({ message: "Guest not found" });
 
     // Guest can optionally type in names when the host didn't record any.
@@ -281,21 +329,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       declinedCount,
       guestEmail,
       note: note ? String(note).trim() : null,
+      meal: meal ? String(meal).trim().slice(0, 200) : "",
       placeCardNames,
     });
 
-    const totals = storage.totals();
+    const totals = storage.totals(event.id);
     let email = { reportSent: false, guestSent: false } as any;
-    try {
-      email = await sendRsvpEmails({
-        settings: storage.getSettings(),
-        guest,
-        response,
-        totals,
-        language,
-      });
-    } catch (err: any) {
-      console.warn("[rsvp] email step failed but RSVP saved:", err?.message || err);
+    // Demo guests use example.com addresses. Saving the reply is enough;
+    // nothing is mailed, so a sample RSVP cannot reach a real inbox.
+    if (!event.isDemo) {
+      try {
+        email = await sendRsvpEmails({
+          settings: mailSettings(event.id),
+          guest,
+          response,
+          totals,
+          language,
+          eventMail: event.isLegacyRoot
+            ? undefined
+            : {
+                honoree: event.honoree,
+                title: event.title || "celebration",
+                dateLong: event.dateLong,
+                ceremonyLabel: event.ceremonyLabel || "Ceremony",
+                ceremonyTime: event.ceremonyTime,
+                ceremonyVenue: event.ceremonyVenue,
+                ceremonyAddress: event.ceremonyAddress,
+                receptionTime: event.receptionTime,
+                receptionVenue: event.receptionVenue,
+                receptionAddress: event.receptionAddress,
+                siteUrl: eventPublicUrl(req, event),
+              },
+        });
+      } catch (err: any) {
+        console.warn("[rsvp] email step failed but RSVP saved:", err?.message || err);
+      }
     }
 
     res.json({
@@ -310,20 +378,52 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ---------------- auth ----------------
   app.get("/api/auth/status", (req, res) => {
     const s = storage.getSettings();
-    const session = currentAdmin(req);
+    const event = resolveRequestEvent(req);
+    const onLegacy = legacyHostSet().has(requestHost(req));
+    const session = currentSession(req);
+    const member = event ? isEventMember(session, event.id) : false;
+    const legacyDefaults = {
+      adminEmail: s.adminEmail || "jerry@jerryateam.com",
+      smtpUser: s.smtpUser || "leah.a.espin@gmail.com",
+      notifyEmail: s.notifyEmail || "stef.espin@gmail.com",
+    };
     res.json({
-      needsSetup: storage.adminCount() === 0,
-      authenticated: !!session,
-      adminEmail: session ? storage.getAdmin(session.adminId)?.email : undefined,
-      defaults: {
-        adminEmail: s.adminEmail || "jerry@jerryateam.com",
-        smtpUser: s.smtpUser || "leah.a.espin@gmail.com",
-        notifyEmail: s.notifyEmail || "stef.espin@gmail.com",
-      },
+      needsSetup: (!event && onLegacy) || (!!event?.isLegacyRoot && storage.adminCount() === 0),
+      authenticated: member,
+      adminEmail: member && session ? sessionEmail(session) : undefined,
+      defaults: event && !event.isLegacyRoot
+        ? {
+            adminEmail: "",
+            smtpUser: event.smtpUser || "",
+            notifyEmail: event.notifyEmail || "",
+          }
+        : legacyDefaults,
+      event: event
+        ? {
+            id: event.id,
+            slug: event.slug,
+            honoree: event.honoree,
+            title: event.title,
+            dateLong: event.dateLong,
+            rsvpByLabel: event.rsvpByLabel,
+            rsvpClosesOn: event.rsvpClosesOn || "",
+            isLegacyRoot: !!event.isLegacyRoot,
+            paid: !!event.paid || !!event.isLegacyRoot,
+            status: event.status,
+            package: event.package,
+            template: event.template,
+            publicPath: event.isLegacyRoot ? "/" : `/e/${event.slug}`,
+            features: describePlan(event),
+          }
+        : null,
     });
   });
 
   app.post("/api/auth/setup", (req, res) => {
+    const onLegacy = legacyHostSet().has(requestHost(req)) || !!storage.getLegacyEvent();
+    if (!onLegacy) {
+      return res.status(400).json({ message: "New events are created from the signup page." });
+    }
     if (storage.adminCount() > 0)
       return res.status(400).json({ message: "Setup has already been completed." });
     const { adminEmail, password, smtpUser, smtpPass, notifyEmail } = req.body || {};
@@ -331,6 +431,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res
         .status(400)
         .json({ message: "Admin email and a password of at least 6 characters are required." });
+    const event = storage.getLegacyEvent() || storage.createLegacyShell();
     const admin = storage.createAdmin(
       String(adminEmail),
       bcrypt.hashSync(String(password), 10),
@@ -343,29 +444,70 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       setupComplete: 1,
       sessionSecret: storage.getSettings().sessionSecret || randomBytes(32).toString("hex"),
     });
-    const token = makeToken(admin.id);
-    res.cookie(COOKIE, token, {
-      httpOnly: true,
-      sameSite: "none",
-      secure: true,
-      maxAge: SESSION_DAYS * 86400_000,
-    });
-    res.json({ ok: true, token, adminEmail: admin.email });
+    const token = makeSessionToken({ role: "legacy", adminId: admin.id, eventId: event.id });
+    setSessionCookie(res, token);
+    res.json({ ok: true, token, adminEmail: admin.email, event: { slug: event.slug } });
   });
 
   app.post("/api/auth/login", (req, res) => {
-    const { email, password } = req.body || {};
-    const admin = storage.getAdminByEmail(String(email || ""));
-    if (!admin || !bcrypt.compareSync(String(password || ""), admin.passwordHash))
+    const email = String(req.body?.email || "");
+    const password = String(req.body?.password || "");
+    const requestedEventId = String(req.body?.eventId || "");
+    const scoped = resolveRequestEvent(req);
+
+    type Choice = { token: string; email: string; eventId: string; slug: string; honoree: string; isLegacyRoot: boolean };
+    const choices: Choice[] = [];
+
+    if (!scoped || scoped.isLegacyRoot) {
+      const admin = storage.getAdminByEmail(email);
+      const leah = storage.getLegacyEvent();
+      if (admin && leah && bcrypt.compareSync(password, admin.passwordHash)) {
+        choices.push({
+          token: makeSessionToken({ role: "legacy", adminId: admin.id, eventId: leah.id }),
+          email: admin.email,
+          eventId: leah.id,
+          slug: leah.slug,
+          honoree: leah.honoree,
+          isLegacyRoot: true,
+        });
+      }
+    }
+
+    const hosts = storage.hostsByEmail(email).filter((h) => bcrypt.compareSync(password, h.passwordHash));
+    for (const host of hosts) {
+      if (scoped && host.eventId !== scoped.id) continue;
+      const event = storage.getEvent(host.eventId);
+      if (!event) continue;
+      choices.push({
+        token: makeSessionToken({ role: "host", hostId: host.id, eventId: event.id }),
+        email: host.email,
+        eventId: event.id,
+        slug: event.slug,
+        honoree: event.honoree,
+        isLegacyRoot: !!event.isLegacyRoot,
+      });
+    }
+
+    const picked = requestedEventId
+      ? choices.filter((c) => c.eventId === requestedEventId)
+      : choices;
+    if (picked.length === 0) {
       return res.status(401).json({ message: "Incorrect email or password." });
-    const token = makeToken(admin.id);
-    res.cookie(COOKIE, token, {
-      httpOnly: true,
-      sameSite: "none",
-      secure: true,
-      maxAge: SESSION_DAYS * 86400_000,
+    }
+    if (picked.length > 1 && !requestedEventId) {
+      return res.json({
+        ok: true,
+        choose: picked.map((c) => ({ eventId: c.eventId, slug: c.slug, honoree: c.honoree })),
+      });
+    }
+    const choice = picked[0];
+    setSessionCookie(res, choice.token);
+    res.json({
+      ok: true,
+      token: choice.token,
+      adminEmail: choice.email,
+      event: { slug: choice.slug, honoree: choice.honoree, isLegacyRoot: choice.isLegacyRoot },
     });
-    res.json({ ok: true, token, adminEmail: admin.email });
   });
 
   app.post("/api/auth/logout", (_req, res) => {
@@ -374,15 +516,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ---------------- admin ----------------
-  app.get("/api/admin/overview", requireAdmin, (_req, res) => {
-    res.json({ totals: storage.totals() });
+  app.get("/api/admin/overview", requireAdmin, (req, res) => {
+    res.json({ totals: storage.totals(eventFromReq(req).id) });
   });
 
-  app.get("/api/admin/guests", requireAdmin, (_req, res) => {
+  app.get("/api/admin/guests", requireAdmin, (req, res) => {
+    const eventId = eventFromReq(req).id;
     // Attach per-guest message-history summary so the admin UI can show
     // "3 sent · last 2d ago" chips without a second request per row.
-    const counts = storage.messageCounts();
-    const list = storage.guestsWithResponses().map((g) => {
+    const counts = storage.messageCounts(eventId);
+    const list = storage.guestsWithResponses(eventId).map((g) => {
       const guestUpdatedAt = (g as any).updatedAt ?? null;
       const responseUpdatedAt = g.response?.updatedAt ?? null;
       const lastMessagedAt = counts[g.id]?.lastSentAt ?? null;
@@ -398,25 +541,123 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         lastActivityAt,
       };
     });
-    res.json({ guests: list, totals: storage.totals() });
+    res.json({ guests: list, totals: storage.totals(eventId) });
   });
 
   /** Log that an iMessage draft was opened for a guest. Called by the admin
    *  Hit em up flow each time she taps "Send" and the sms: URL is opened. */
   app.post("/api/admin/messages/log", requireAdmin, (req, res) => {
+    const event = eventFromReq(req);
+    if (!planAllows(event, "textBlast")) {
+      return res.status(403).json(upgradeRequired("textBlast"));
+    }
     const { guestId, phone, body } = req.body || {};
     if (!guestId || !phone || !body) {
       return res.status(400).json({ message: "guestId, phone, body required." });
     }
-    const guest = storage.getGuest(String(guestId));
+    const eventId = event.id;
+    const guest = storage.getGuest(String(guestId), eventId);
     if (!guest) return res.status(404).json({ message: "Guest not found." });
-    const log = storage.logMessage(String(guestId), String(phone), String(body));
+    const log = storage.logMessage(String(guestId), String(phone), String(body), eventId);
     res.json({ log });
   });
 
   /** Optional: list all logs for one guest (for a future "history" view). */
+  app.post("/api/admin/email-blast", requireAdmin, async (req, res) => {
+    const event = eventFromReq(req);
+    if (!planAllows(event, "emailBlast")) {
+      return res.status(403).json(upgradeRequired("emailBlast"));
+    }
+    const subject = String(req.body?.subject || "").trim().slice(0, 200);
+    const template = String(req.body?.body || "").trim().slice(0, 4000);
+    if (subject.length < 2 || template.length < 2) {
+      return res.status(400).json({ message: "Add a subject and a message." });
+    }
+    const guests = storage.allGuests(event.id);
+    const link = eventPublicUrl(req, event);
+    const ready: { guest: Guest; email: string }[] = [];
+    const skippedGuests: Guest[] = [];
+    for (const guest of guests) {
+      const email = deliverableEmail(guest.email);
+      if (!email) {
+        if (String(guest.email || "").trim()) skippedGuests.push(guest);
+        continue;
+      }
+      ready.push({ guest, email });
+    }
+    if (ready.length === 0) {
+      return res.status(400).json({
+        message: skippedGuests.length
+          ? "Every saved address is a sample address, so nothing was sent."
+          : "None of the guests have an email address yet.",
+      });
+    }
+    const settings = mailSettings(event.id);
+    if (!settings.smtpUser || !settings.smtpPass) {
+      return res.status(400).json({ message: "Add a Gmail address and app password in Settings before emailing guests." });
+    }
+    const limit = emailBlastLimit();
+    const since = Date.now() - 60 * 60_000;
+    if (storage.emailBlastsSince(event.id, since) >= limit) {
+      return res.status(429).json({
+        message: `Email everyone is limited to ${limit} send${limit === 1 ? "" : "s"} per hour for this event.`,
+      });
+    }
+    const cap = 500;
+    const batch = ready.slice(0, cap);
+    let skipped = skippedGuests.length + (ready.length - batch.length);
+    const blastId = randomBytes(8).toString("hex");
+    for (const guest of skippedGuests) {
+      storage.logEmail({
+        eventId: event.id,
+        guestId: guest.id,
+        blastId,
+        email: String(guest.email || ""),
+        subject,
+        body: template,
+        status: "skipped",
+        error: "sample or undeliverable address",
+      });
+    }
+    const fromName = event.honoree || "Your host";
+    let sent = 0;
+    let failed = 0;
+    for (const item of batch) {
+      const body = mergeGuestFields(template, item.guest, link);
+      const renderedSubject = mergeGuestFields(subject, item.guest, link);
+      try {
+        await sendPlainEmail(settings, { to: item.email, subject: renderedSubject, text: body, fromName });
+        storage.logEmail({
+          eventId: event.id,
+          guestId: item.guest.id,
+          blastId,
+          email: item.email,
+          subject: renderedSubject,
+          body,
+          status: "sent",
+        });
+        sent += 1;
+      } catch (err: any) {
+        failed += 1;
+        storage.logEmail({
+          eventId: event.id,
+          guestId: item.guest.id,
+          blastId,
+          email: item.email,
+          subject: renderedSubject,
+          body,
+          status: "failed",
+          error: String(err?.message || err).slice(0, 300),
+        });
+      }
+    }
+    res.json({ ok: true, sent, failed, skipped, blastId });
+  });
+
   app.get("/api/admin/messages/:guestId", requireAdmin, (req, res) => {
-    res.json({ logs: storage.messagesForGuest(String(req.params.guestId)) });
+    const guest = storage.getGuest(String(req.params.guestId), eventFromReq(req).id);
+    if (!guest) return res.status(404).json({ message: "Guest not found." });
+    res.json({ logs: storage.messagesForGuest(guest.id) });
   });
 
   app.post("/api/admin/guests", requireAdmin, (req, res) => {
@@ -429,6 +670,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // "Name for text" defaults to first name so the Hit em up flow always has
     // a greeting even if Jerry didn't fill it in explicitly.
     const nameForText = String(req.body?.nameForText || "").trim() || first;
+    const eventId = eventFromReq(req).id;
     const guest = storage.createGuest({
       firstName: first,
       lastName: String(lastName || ""),
@@ -438,6 +680,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       email: email ? String(email) : null,
       invites: Number(invites) || 1,
       additionalNames: readAdditionalNames(req.body?.additionalNames) ?? [],
+      eventId,
     } as any);
     // Attach the same enriched fields the list endpoint returns so the
     // frontend can insert the new row in place without a full reload.
@@ -449,11 +692,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         lastMessagedAt: null,
         lastActivityAt: (guest as any).updatedAt ?? Date.now(),
       },
-      totals: storage.totals(),
+      totals: storage.totals(eventId),
     });
   });
 
   app.patch("/api/admin/guests/:id", requireAdmin, (req, res) => {
+    const eventId = eventFromReq(req).id;
     const guest = storage.updateGuest(String(req.params.id), {
       firstName: req.body?.firstName,
       lastName: req.body?.lastName,
@@ -463,7 +707,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       email: req.body?.email,
       invites: req.body?.invites,
       additionalNames: readAdditionalNames(req.body?.additionalNames),
-    } as any);
+    } as any, eventId);
     if (!guest) return res.status(404).json({ message: "Guest not found" });
 
     // response fields (optional)
@@ -488,7 +732,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     // rolled up so the admin UI can update the row in place without a
     // second GET. Uses per-guest lookups instead of scanning the whole
     // guest list + every message log — saves ~2x work on each save.
-    const fresh = storage.guestWithResponse(guest.id);
+    const fresh = storage.guestWithResponse(guest.id, eventId);
     const { count: messageCount, lastSentAt: lastMessagedAt } =
       storage.messageCountForGuest(guest.id);
     const guestUpdatedAt = (fresh as any)?.updatedAt ?? null;
@@ -498,12 +742,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       .reduce<number | null>((max, v) => (max === null || v > max ? v : max), null);
     res.json({
       guest: fresh ? { ...fresh, messageCount, lastMessagedAt, lastActivityAt } : null,
-      totals: storage.totals(),
+      totals: storage.totals(eventId),
     });
   });
 
   app.delete("/api/admin/guests/:id", requireAdmin, (req, res) => {
-    storage.deleteGuest(String(req.params.id));
+    storage.deleteGuest(String(req.params.id), eventFromReq(req).id);
     res.json({ ok: true });
   });
 
@@ -514,8 +758,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (req.body?.confirm !== "DELETE_ALL_GUESTS") {
       return res.status(400).json({ message: "Missing confirm token." });
     }
-    const all = storage.allGuests();
-    for (const g of all) storage.deleteGuest(g.id);
+    const eventId = eventFromReq(req).id;
+    const all = storage.allGuests(eventId);
+    for (const g of all) storage.deleteGuest(g.id, eventId);
     res.json({ ok: true, deleted: all.length });
   });
 
@@ -577,7 +822,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     let added = 0,
       updated = 0,
       skipped = 0;
-    const existing = storage.allGuests();
+    const eventId = eventFromReq(req).id;
+    const existing = storage.allGuests(eventId);
 
     for (const r of body) {
       const get = (i: number) => (i >= 0 && i < r.length ? r[i].trim() : "");
@@ -696,7 +942,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           email: email || match.email,
           invites,
           additionalNames: additionalNames.length ? additionalNames : match.additionalNames,
-        } as any);
+        } as any, eventId);
         if (u) {
           Object.assign(match, u);
           updated++;
@@ -715,16 +961,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           email: email || null,
           invites,
           additionalNames,
+          eventId,
         } as any);
         existing.push(created);
         added++;
       }
     }
-    res.json({ added, updated, skipped, totals: storage.totals() });
+    res.json({ added, updated, skipped, totals: storage.totals(eventId) });
   });
 
-  app.get("/api/admin/guests/export", requireAdmin, (_req, res) => {
-    const rows = storage.guestsWithResponses();
+  app.get("/api/admin/guests/export", requireAdmin, (req, res) => {
+    const event = eventFromReq(req);
+    const rows = storage.guestsWithResponses(event.id);
     const header = [
       "partyName",
       "firstName",
@@ -739,6 +987,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       "pendingSeats",
       "guestEmail",
       "note",
+      "meal",
       "placeCardNames",
       "updatedAt",
     ];
@@ -760,6 +1009,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           r ? 0 : g.invites,
           r?.guestEmail || "",
           r?.note || "",
+          r?.meal || "",
           // Place-card names — stored as JSON, exported as "Name 1; Name 2"
           // so it round-trips cleanly through spreadsheet tools.
           (() => {
@@ -782,52 +1032,90 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
     const csv = lines.join("\n");
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader("Content-Disposition", 'attachment; filename="leah-quinceanera-rsvps.csv"');
+    const filename = event.isLegacyRoot ? "leah-quinceanera-rsvps.csv" : `${event.slug}-rsvps.csv`;
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(csv);
   });
 
-  app.get("/api/admin/settings", requireAdmin, (_req, res) => {
-    const s = storage.getSettings();
+  app.get("/api/admin/settings", requireAdmin, (req, res) => {
+    const event = eventFromReq(req);
+    const auth = authFromReq(req);
+    const s = event.isLegacyRoot ? storage.getSettings() : mailSettings(event.id);
     res.json({
       settings: {
         smtpUser: s.smtpUser,
         smtpPassSet: !!s.smtpPass,
         notifyEmail: s.notifyEmail,
-        adminEmail: s.adminEmail,
+        adminEmail: sessionEmail(auth) || s.adminEmail,
+        rsvpClosesOn: event.rsvpClosesOn || "",
       },
     });
   });
 
   app.patch("/api/admin/settings", requireAdmin, (req, res) => {
-    const patch: Record<string, unknown> = {};
+    const event = eventFromReq(req);
+    const auth = authFromReq(req);
+    if (req.body?.rsvpClosesOn !== undefined) {
+      const raw = String(req.body.rsvpClosesOn || "").trim();
+      if (raw && !/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+        return res.status(400).json({ message: "RSVP close date must be YYYY-MM-DD." });
+      }
+      storage.updateEvent(event.id, { rsvpClosesOn: raw });
+    }
+    if (event.isLegacyRoot) {
+      const patch: Record<string, unknown> = {};
+      if (req.body?.smtpUser !== undefined) patch.smtpUser = String(req.body.smtpUser).trim();
+      if (req.body?.smtpPass) patch.smtpPass = String(req.body.smtpPass).trim();
+      if (req.body?.notifyEmail !== undefined)
+        patch.notifyEmail = String(req.body.notifyEmail).trim();
+      const s = storage.updateSettings(patch as any);
+      if (req.body?.newPassword) {
+        if (String(req.body.newPassword).length < 6)
+          return res.status(400).json({ message: "Password must be at least 6 characters." });
+        if (auth.role === "legacy") {
+          storage.updateAdminPassword(auth.adminId, bcrypt.hashSync(String(req.body.newPassword), 10));
+        }
+      }
+      const fresh = storage.getEvent(event.id)!;
+      return res.json({
+        settings: {
+          smtpUser: s.smtpUser,
+          smtpPassSet: !!s.smtpPass,
+          notifyEmail: s.notifyEmail,
+          adminEmail: s.adminEmail,
+          rsvpClosesOn: fresh.rsvpClosesOn || "",
+        },
+      });
+    }
+    const patch: Partial<typeof event> = {};
     if (req.body?.smtpUser !== undefined) patch.smtpUser = String(req.body.smtpUser).trim();
     if (req.body?.smtpPass) patch.smtpPass = String(req.body.smtpPass).trim();
-    if (req.body?.notifyEmail !== undefined)
-      patch.notifyEmail = String(req.body.notifyEmail).trim();
-    const s = storage.updateSettings(patch);
+    if (req.body?.notifyEmail !== undefined) patch.notifyEmail = String(req.body.notifyEmail).trim();
+    const updated = storage.updateEvent(event.id, patch);
     if (req.body?.newPassword) {
-      if (String(req.body.newPassword).length < 6)
-        return res.status(400).json({ message: "Password must be at least 6 characters." });
-      storage.updateAdminPassword(
-        (req as any).adminId,
-        bcrypt.hashSync(String(req.body.newPassword), 10),
-      );
+      if (String(req.body.newPassword).length < 8)
+        return res.status(400).json({ message: "Password must be at least 8 characters." });
+      if (auth.role === "host") {
+        storage.updateHostPassword(auth.hostId, bcrypt.hashSync(String(req.body.newPassword), 10));
+      }
     }
     res.json({
       settings: {
-        smtpUser: s.smtpUser,
-        smtpPassSet: !!s.smtpPass,
-        notifyEmail: s.notifyEmail,
-        adminEmail: s.adminEmail,
+        smtpUser: updated.smtpUser,
+        smtpPassSet: !!updated.smtpPass,
+        notifyEmail: updated.notifyEmail,
+        adminEmail: sessionEmail(auth) || "",
+        rsvpClosesOn: updated.rsvpClosesOn || "",
       },
     });
   });
 
   app.post("/api/admin/settings/test-email", requireAdmin, async (req, res) => {
-    const s = storage.getSettings();
+    const event = eventFromReq(req);
+    const s = mailSettings(event.id);
     const to = String(req.body?.to || s.notifyEmail || s.smtpUser);
     try {
-      await sendTestEmail(s, to);
+      await sendTestEmail(s, to, event.isLegacyRoot ? undefined : `${event.honoree} RSVP`);
       res.json({ ok: true, to });
     } catch (err: any) {
       res.status(400).json({ message: err?.message || "Failed to send test email." });
