@@ -4,10 +4,10 @@ import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { storage } from "./storage";
-import { sendRsvpEmails, sendTestEmail } from "./mailer";
+import { sendPlainEmail, sendRsvpEmails, sendTestEmail } from "./mailer";
 import { normalizePhone, additionalNamesSchema } from "@shared/schema";
-import type { AdditionalName, Settings } from "@shared/schema";
-import { rsvpIsClosed } from "@shared/platform";
+import type { AdditionalName, Guest, Settings } from "@shared/schema";
+import { describePlan, planAllows, rsvpIsClosed, upgradeRequired } from "@shared/platform";
 import { registerPlatformRoutes } from "./platform-routes";
 import {
   clientIp,
@@ -109,6 +109,36 @@ function readAdditionalNames(v: unknown): AdditionalName[] | undefined {
   return parsed.data
     .filter((n) => n.firstName || n.lastName)
     .slice(0, MAX_ADDITIONAL);
+}
+
+function emailBlastLimit(): number {
+  const n = Number(process.env.EMAIL_BLAST_PER_HOUR || 2);
+  if (!Number.isFinite(n) || n <= 0) return 2;
+  return Math.min(20, Math.max(1, Math.round(n)));
+}
+
+function mergeGuestFields(template: string, guest: Guest, link: string): string {
+  const values: Record<string, string> = {
+    "name for text": guest.nameForText || guest.partyName || guest.firstName,
+    "name of party": guest.partyName || `${guest.firstName} ${guest.lastName}`.trim(),
+    "first name": guest.firstName,
+    "last name": guest.lastName,
+    "full names": `${guest.firstName} ${guest.lastName}`.trim(),
+    "total invites": String(guest.invites),
+    invites: String(guest.invites),
+    phone: guest.phone,
+    email: guest.email || "",
+    "rsvp link": link,
+    link,
+  };
+  return template.replace(/\{([^}]+)\}/g, (_m, key) => values[String(key).trim().toLowerCase()] ?? `{${key}}`);
+}
+
+function deliverableEmail(raw: string | null | undefined): string {
+  const email = String(raw || "").trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "";
+  if (/@example\.(com|org|net)$/.test(email)) return "";
+  return email;
 }
 
 function mailSettings(eventId: string): Settings {
@@ -383,6 +413,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
             package: event.package,
             template: event.template,
             publicPath: event.isLegacyRoot ? "/" : `/e/${event.slug}`,
+            features: describePlan(event),
           }
         : null,
     });
@@ -516,11 +547,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   /** Log that an iMessage draft was opened for a guest. Called by the admin
    *  Hit em up flow each time she taps "Send" and the sms: URL is opened. */
   app.post("/api/admin/messages/log", requireAdmin, (req, res) => {
+    const event = eventFromReq(req);
+    if (!planAllows(event, "textBlast")) {
+      return res.status(403).json(upgradeRequired("textBlast"));
+    }
     const { guestId, phone, body } = req.body || {};
     if (!guestId || !phone || !body) {
       return res.status(400).json({ message: "guestId, phone, body required." });
     }
-    const eventId = eventFromReq(req).id;
+    const eventId = event.id;
     const guest = storage.getGuest(String(guestId), eventId);
     if (!guest) return res.status(404).json({ message: "Guest not found." });
     const log = storage.logMessage(String(guestId), String(phone), String(body), eventId);
@@ -528,6 +563,97 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   /** Optional: list all logs for one guest (for a future "history" view). */
+  app.post("/api/admin/email-blast", requireAdmin, async (req, res) => {
+    const event = eventFromReq(req);
+    if (!planAllows(event, "emailBlast")) {
+      return res.status(403).json(upgradeRequired("emailBlast"));
+    }
+    const subject = String(req.body?.subject || "").trim().slice(0, 200);
+    const template = String(req.body?.body || "").trim().slice(0, 4000);
+    if (subject.length < 2 || template.length < 2) {
+      return res.status(400).json({ message: "Add a subject and a message." });
+    }
+    const guests = storage.allGuests(event.id);
+    const link = eventPublicUrl(req, event);
+    const ready: { guest: Guest; email: string }[] = [];
+    const skippedGuests: Guest[] = [];
+    for (const guest of guests) {
+      const email = deliverableEmail(guest.email);
+      if (!email) {
+        if (String(guest.email || "").trim()) skippedGuests.push(guest);
+        continue;
+      }
+      ready.push({ guest, email });
+    }
+    if (ready.length === 0) {
+      return res.status(400).json({
+        message: skippedGuests.length
+          ? "Every saved address is a sample address, so nothing was sent."
+          : "None of the guests have an email address yet.",
+      });
+    }
+    const settings = mailSettings(event.id);
+    if (!settings.smtpUser || !settings.smtpPass) {
+      return res.status(400).json({ message: "Add a Gmail address and app password in Settings before emailing guests." });
+    }
+    const limit = emailBlastLimit();
+    const since = Date.now() - 60 * 60_000;
+    if (storage.emailBlastsSince(event.id, since) >= limit) {
+      return res.status(429).json({
+        message: `Email everyone is limited to ${limit} send${limit === 1 ? "" : "s"} per hour for this event.`,
+      });
+    }
+    const cap = 500;
+    const batch = ready.slice(0, cap);
+    let skipped = skippedGuests.length + (ready.length - batch.length);
+    const blastId = randomBytes(8).toString("hex");
+    for (const guest of skippedGuests) {
+      storage.logEmail({
+        eventId: event.id,
+        guestId: guest.id,
+        blastId,
+        email: String(guest.email || ""),
+        subject,
+        body: template,
+        status: "skipped",
+        error: "sample or undeliverable address",
+      });
+    }
+    const fromName = event.honoree || "Your host";
+    let sent = 0;
+    let failed = 0;
+    for (const item of batch) {
+      const body = mergeGuestFields(template, item.guest, link);
+      const renderedSubject = mergeGuestFields(subject, item.guest, link);
+      try {
+        await sendPlainEmail(settings, { to: item.email, subject: renderedSubject, text: body, fromName });
+        storage.logEmail({
+          eventId: event.id,
+          guestId: item.guest.id,
+          blastId,
+          email: item.email,
+          subject: renderedSubject,
+          body,
+          status: "sent",
+        });
+        sent += 1;
+      } catch (err: any) {
+        failed += 1;
+        storage.logEmail({
+          eventId: event.id,
+          guestId: item.guest.id,
+          blastId,
+          email: item.email,
+          subject: renderedSubject,
+          body,
+          status: "failed",
+          error: String(err?.message || err).slice(0, 300),
+        });
+      }
+    }
+    res.json({ ok: true, sent, failed, skipped, blastId });
+  });
+
   app.get("/api/admin/messages/:guestId", requireAdmin, (req, res) => {
     const guest = storage.getGuest(String(req.params.guestId), eventFromReq(req).id);
     if (!guest) return res.status(404).json({ message: "Guest not found." });

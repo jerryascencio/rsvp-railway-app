@@ -169,9 +169,10 @@ script/build.ts    Vite client build + esbuild server bundle
 
 Phase 1 turns this app into a small RSVP service other families can buy, without changing Leah's live site.
 
-- **Basic** — $100. An Elegant, Fiesta, or Minimal template for any celebration, bilingual copy, guest CSV import, photos, and a host dashboard.
-- **Custom domain** — +$25 on Basic. The order stores the domain they want. Jerry connects it later by saving the live hostname in Studio (`/super`).
-- **Full custom** — $250. The order stores their notes. Fulfillment is manual. They can still publish the template site.
+- **Basic** — $25 (`STRIPE_PRICE_BASIC`). Self-serve. The host picks a template, uploads guests, and manages RSVPs. Hit em up and email-everyone stay locked. The API returns 403 with an upgrade message.
+- **Plus** — $100 (`STRIPE_PRICE_PLUS`). Rename it in `PLAN_PLUS_NAME` in `shared/platform.ts`. Includes Basic, a custom domain we buy for a year (this replaces the old +$25 add-on), Hit em up, and email-everyone. Emails go out through that event's Gmail app password, are limited per event (`EMAIL_BLAST_PER_HOUR`, default 2), and are written to `email_logs`.
+- **Full custom** — $250 (`STRIPE_PRICE_CUSTOM`). Everything in Plus, with a design we make. The order stores their notes. Fulfillment is manual. They can still publish the template site.
+- Upgrades from the dashboard charge the difference when the event is already paid (Basic to Plus $75, Basic to Full custom $225, Plus to Full custom $150). An unpaid draft is repriced to the new plan's full amount. Leah's event and the sample sites keep every feature. Studio revenue sums `amountCents` for paid non-demo events (including upgrade amounts added onto the original charge) and the legacy root event. Unpaid quotes are not revenue.
 - Unpaid events stay a private preview. Publishing requires a paid order.
 - RSVPs can be closed on a date. The public form is replaced and `POST /api/rsvp` rejects new replies.
 - Guest search is rate-limited (default 30 lookups per minute per IP per event).
@@ -187,9 +188,10 @@ A platform database (one with no legacy root event) seeds six published sample s
 | `STRIPE_SECRET_KEY` | for real checkout | Secret key for the Stripe account **RSVP Sites by Mission** (test mode until launch). Not the CRM account. If empty, checkout is a clearly labeled local mock that marks the order paid. Jerry will paste the keys in later. |
 | `STRIPE_WEBHOOK_SECRET` | for real checkout | Signing secret for `POST /api/stripe/webhook` (`checkout.session.completed`). |
 | `STRIPE_PUBLISHABLE_KEY` | no | Exposed to the browser via `/api/billing/config`. Hosted Checkout does not require it. |
-| `STRIPE_PRICE_BASIC` | no | Price id for the $100 package. If empty, Checkout uses inline `price_data`. |
-| `STRIPE_PRICE_DOMAIN` | no | Price id for the $25 domain add-on. |
-| `STRIPE_PRICE_CUSTOM` | no | Price id for the $250 full-custom package. |
+| `STRIPE_PRICE_BASIC` | no | Price id for the $25 Basic plan. If empty, Checkout uses inline `price_data` at $25. |
+| `STRIPE_PRICE_PLUS` | no | Price id for the $100 Plus plan. If empty, Checkout uses inline `price_data` at $100. Upgrades always use inline `price_data` for the difference, even when these price ids are set. |
+| `STRIPE_PRICE_CUSTOM` | no | Price id for the $250 Full custom plan. If empty, Checkout uses inline `price_data` at $250. |
+| `EMAIL_BLAST_PER_HOUR` | no | Email-everyone sends per event per hour. Default 2. Clamped from 1 to 20. |
 | `PUBLIC_PLATFORM_URL` | no | Origin used in Checkout return URLs, e.g. `https://rsvp.example.com`. If empty, the request host is used. **Do not set this to Leah's domain.** |
 | `SUPER_ADMIN_EMAIL` | for Studio | Creates Jerry's `/super` login on first boot. |
 | `SUPER_ADMIN_PASSWORD` | for Studio | At least 8 characters. Changing it later does not rotate an existing password. |

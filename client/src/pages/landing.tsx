@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { useLanguage } from "@/lib/language";
-import { BRAND_NAME } from "@shared/platform";
+import { BRAND_NAME, PLAN_PLUS_NAME } from "@shared/platform";
 import { BrandHeader, BrandShell } from "@/components/brand-shell";
 
 const LEAH_LIVE = "https://www.leahaespinoza.com";
@@ -27,7 +27,7 @@ const copy = {
       { t: "Guest list upload", d: "Import a CSV. Households, extra names, and seat counts come with them." },
       { t: "Live RSVP dashboard", d: "Headcount, notes, and who still hasn't answered, updated as replies arrive." },
       { t: "Close RSVPs", d: "Pick a last day. After that, the form stops and guests see a closed message." },
-      { t: "Custom domain", d: "Add your family's name in the address. We register it for a year and connect it." },
+      { t: "Custom domain", d: "Plus and Full custom put your family's name in the address. We register it for a year and connect it." },
     ],
     templates: "Six templates",
     templatesLede: "A starting point for any celebration, not a single kind of party.",
@@ -51,17 +51,17 @@ const copy = {
     confettiD: "Bright color for a kids' party or a baptism.",
     confettiWhen: "April 10, 2027",
     basic: "Basic",
-    basicPrice: "$100",
-    basicNote: "per event",
-    basicPoints: ["Invitation page and host dashboard", "Any of the six templates", "English and Spanish", "Guest list upload and photos"],
-    domain: "Custom domain",
-    domainPrice: "+$25",
-    domainNote: "per year",
-    domainPoints: ["Your name in the address", "We buy the domain for a year", "Added to a Basic site"],
+    basicPrice: "$25",
+    basicNote: "self-serve",
+    basicPoints: ["You pick a template and run it yourself", "Guest upload and the RSVP dashboard", "English and Spanish", "No text-everyone or email-everyone"],
+    plus: PLAN_PLUS_NAME.en,
+    plusPrice: "$100",
+    plusNote: "domain and messages",
+    plusPoints: ["Everything in Basic", "Your own website address for a year", "Hit em up: text every guest", "Email everyone from your Gmail"],
     custom: "Full custom",
     customPrice: "$250",
-    customNote: "designed with you",
-    customPoints: ["Everything in Basic", "A design made for your day", "We build it from your notes"],
+    customNote: "designed by us",
+    customPoints: ["Everything in Plus", "A custom design done by us", "We build it from your notes"],
     choose: "Choose this",
     pricing: "Simple pricing",
     exampleEyebrow: "A real example",
@@ -74,9 +74,11 @@ const copy = {
       { q: "Who is this for?", a: "Any host with a guest list: weddings, quinceañeras, birthdays, showers, anniversaries, graduations, and parties." },
       { q: "Do guests need an account?", a: "No. They search their name on your link and respond." },
       { q: "When does the site go public?", a: "After you pay, you preview it and publish when you're ready. Unpaid drafts stay private." },
-      { q: "Can I use my own domain?", a: "Yes. The custom-domain add-on is $25 for a year. We register it and connect it by hand." },
+      { q: "What's the difference between the plans?", a: "Basic is $25: you pick a template, upload guests, and manage RSVPs yourself. Plus is $100 and adds a domain we buy for a year, Hit em up texts, and one email to every guest. Full custom is $250 and adds a design we make for you." },
+      { q: "Can I use my own domain?", a: "Yes, with Plus and Full custom. The domain is included for a year. We register it and connect it by hand." },
+      { q: "Can I upgrade later?", a: "Yes. From the dashboard you can move from Basic to Plus or Full custom, or from Plus to Full custom. If you already paid, checkout charges only the difference." },
     ],
-    fine: "Unpaid events stay a private preview. A custom domain is requested at checkout and connected by hand.",
+    fine: "Unpaid events stay a private preview. Plus and Full custom include a domain for a year, connected by hand. Upgrading later charges the difference.",
   },
   es: {
     start: "Crear mi sitio",
@@ -99,7 +101,7 @@ const copy = {
       { t: "Lista de invitados", d: "Importe un CSV. Familias, nombres extra y número de lugares vienen juntos." },
       { t: "Tablero en vivo", d: "Conteo, notas y quién no ha respondido, al día a medida que llegan las respuestas." },
       { t: "Cerrar confirmaciones", d: "Elija el último día. Después, el formulario se detiene y se muestra un aviso." },
-      { t: "Dominio propio", d: "El nombre de su familia en la dirección. Lo registramos por un año y lo conectamos." },
+      { t: "Dominio propio", d: "Plus y Diseño a medida ponen el nombre de su familia en la dirección. Lo registramos por un año y lo conectamos." },
     ],
     templates: "Seis plantillas",
     templatesLede: "Un punto de partida para cualquier celebración, no para un solo tipo de fiesta.",
@@ -123,17 +125,17 @@ const copy = {
     confettiD: "Color vivo para una fiesta infantil o un bautizo.",
     confettiWhen: "10 de abril de 2027",
     basic: "Básico",
-    basicPrice: "$100",
-    basicNote: "por evento",
-    basicPoints: ["Invitación y tablero de anfitrión", "Cualquiera de las seis plantillas", "Inglés y español", "Lista de invitados y fotos"],
-    domain: "Dominio propio",
-    domainPrice: "+$25",
-    domainNote: "por año",
-    domainPoints: ["Su nombre en la dirección", "Compramos el dominio por un año", "Se agrega a un sitio Básico"],
+    basicPrice: "$25",
+    basicNote: "usted lo maneja",
+    basicPoints: ["Usted elige la plantilla y lo maneja", "Lista de invitados y tablero de confirmaciones", "Inglés y español", "Sin texto a todos ni correo a todos"],
+    plus: PLAN_PLUS_NAME.es,
+    plusPrice: "$100",
+    plusNote: "dominio y mensajes",
+    plusPoints: ["Todo lo del plan Básico", "Su propia dirección web por un año", "Hit em up: un texto a cada invitado", "Un correo a cada invitado desde su Gmail"],
     custom: "Diseño a medida",
     customPrice: "$250",
-    customNote: "lo diseñamos con usted",
-    customPoints: ["Todo lo del plan Básico", "Un diseño hecho para su día", "Lo armamos según sus notas"],
+    customNote: "lo diseñamos nosotros",
+    customPoints: ["Todo lo del plan Plus", "Un diseño hecho por nosotros", "Lo armamos según sus notas"],
     choose: "Elegir",
     pricing: "Precios simples",
     exampleEyebrow: "Un ejemplo real",
@@ -146,9 +148,11 @@ const copy = {
       { q: "¿Para quién es?", a: "Para quien tenga una lista: bodas, quinceañeras, cumpleaños, baby showers, aniversarios, graduaciones y fiestas." },
       { q: "¿Los invitados necesitan una cuenta?", a: "No. Buscan su nombre en su enlace y responden." },
       { q: "¿Cuándo se publica el sitio?", a: "Después de pagar, usted lo previsualiza y lo publica cuando quiera. Los borradores sin pago quedan en privado." },
-      { q: "¿Puedo usar mi propio dominio?", a: "Sí. El complemento cuesta $25 por un año. Lo registramos y lo conectamos a mano." },
+      { q: "¿Cuál es la diferencia entre los planes?", a: "Básico cuesta $25: usted elige la plantilla, sube invitados y maneja las confirmaciones. Plus cuesta $100 y agrega un dominio que compramos por un año, textos Hit em up y un correo a cada invitado. Diseño a medida cuesta $250 y agrega un diseño que hacemos nosotros." },
+      { q: "¿Puedo usar mi propio dominio?", a: "Sí, con Plus y Diseño a medida. El dominio va incluido por un año. Lo registramos y lo conectamos a mano." },
+      { q: "¿Puedo mejorar el plan después?", a: "Sí. Desde el tablero puede pasar de Básico a Plus o a Diseño a medida, o de Plus a Diseño a medida. Si ya pagó, el cobro es solo la diferencia." },
     ],
-    fine: "Un evento sin pagar queda como vista previa privada. El dominio se pide al pagar y se conecta a mano.",
+    fine: "Un evento sin pagar queda como vista previa privada. Plus y Diseño a medida incluyen un dominio por un año, conectado a mano. Mejorar el plan después cobra solo la diferencia.",
   },
 } as const;
 
@@ -314,9 +318,9 @@ export default function Landing() {
           <div className="mx-auto max-w-6xl px-5 py-14">
             <h2 className="brand-display text-4xl">{t.pricing}</h2>
             <div className="mt-8 grid gap-4 lg:grid-cols-3">
-              <PriceCard name={t.basic} price={t.basicPrice} note={t.basicNote} points={t.basicPoints} href="/start?package=basic" cta={t.choose} featured />
-              <PriceCard name={t.domain} price={t.domainPrice} note={t.domainNote} points={t.domainPoints} href="/start?package=basic&domain=1" cta={t.choose} />
-              <PriceCard name={t.custom} price={t.customPrice} note={t.customNote} points={t.customPoints} href="/start?package=full_custom" cta={t.choose} />
+              <PriceCard testId="price-basic" name={t.basic} price={t.basicPrice} note={t.basicNote} points={t.basicPoints} href="/start?package=basic" cta={t.choose} />
+              <PriceCard testId="price-plus" name={t.plus} price={t.plusPrice} note={t.plusNote} points={t.plusPoints} href="/start?package=plus" cta={t.choose} featured />
+              <PriceCard testId="price-custom" name={t.custom} price={t.customPrice} note={t.customNote} points={t.customPoints} href="/start?package=full_custom" cta={t.choose} />
             </div>
           </div>
         </section>
@@ -374,6 +378,7 @@ export default function Landing() {
 }
 
 function PriceCard({
+  testId,
   name,
   price,
   note,
@@ -382,6 +387,7 @@ function PriceCard({
   cta,
   featured,
 }: {
+  testId: string;
   name: string;
   price: string;
   note: string;
@@ -391,7 +397,7 @@ function PriceCard({
   featured?: boolean;
 }) {
   return (
-    <article className={`flex flex-col rounded-2xl border p-6 ${featured ? "border-[#142033] bg-[#142033] text-white" : "border-[#d7dee7] bg-[#f3f5f8]"}`}>
+    <article data-testid={testId} className={`flex flex-col rounded-2xl border p-6 ${featured ? "border-[#142033] bg-[#142033] text-white" : "border-[#d7dee7] bg-[#f3f5f8]"}`}>
       <h3 className="text-sm font-semibold uppercase tracking-[0.14em] opacity-80">{name}</h3>
       <p className="brand-display mt-3 text-5xl">{price}</p>
       <p className="text-sm opacity-70">{note}</p>

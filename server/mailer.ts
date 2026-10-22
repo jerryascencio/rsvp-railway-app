@@ -366,3 +366,26 @@ async function sendDynamicRsvpEmails(opts: {
   }
   return result;
 }
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/** One plain message from the event's own Gmail app password. */
+export async function sendPlainEmail(
+  settings: Settings,
+  opts: { to: string; subject: string; text: string; fromName: string },
+): Promise<void> {
+  const tx = transport(settings);
+  const fromName = opts.fromName.replace(/"/g, "").slice(0, 80) || "RSVP";
+  await tx.sendMail({
+    from: `"${fromName}" <${settings.smtpUser}>`,
+    to: opts.to,
+    subject: opts.subject,
+    text: opts.text,
+    html: `<div style="font-family:Georgia,serif;font-size:16px;line-height:1.5;color:#1c1917;white-space:pre-wrap">${escapeHtml(opts.text)}</div>`,
+  });
+}

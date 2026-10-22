@@ -3,13 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
-import type { EventRecord } from "@shared/schema";
+import type { EventRecord, Order } from "@shared/schema";
 import { storage } from "./storage";
 import {
   describeDate,
+  describePlan,
   isValidSlug,
+  normalizePlan,
   normalizeTemplate,
-  orderAmountCents,
+  planPriceCents,
   slugify,
   titleForKind,
   type EventPackage,
@@ -191,11 +193,11 @@ export function registerPlatformRoutes(app: Express) {
     if (password.length < 8) {
       return res.status(400).json({ message: "Use a password of at least 8 characters." });
     }
-    const pkg: EventPackage = req.body?.package === "full_custom" ? "full_custom" : "basic";
+    const pkg: EventPackage = normalizePlan(req.body?.package);
     const template = normalizeTemplate(req.body?.template);
-    const customDomain = pkg === "basic" && !!req.body?.customDomain;
-    const desiredDomain = customDomain || pkg === "full_custom" ? cleanDomain(cleanText(req.body?.desiredDomain, 120)) : "";
-    if ((customDomain || (pkg === "full_custom" && desiredDomain)) && desiredDomain && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(desiredDomain)) {
+    const includesDomain = pkg !== "basic";
+    const desiredDomain = includesDomain ? cleanDomain(cleanText(req.body?.desiredDomain, 120)) : "";
+    if (desiredDomain && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(desiredDomain)) {
       return res.status(400).json({ message: "That domain doesn't look right. Example: mariaandluis.com" });
     }
     const honoree = cleanText(req.body?.honoree, 120);
@@ -217,7 +219,7 @@ export function registerPlatformRoutes(app: Express) {
       return res.status(400).json({ message: "Tell us what you want designed. A sentence or two is enough." });
     }
     const now = Date.now();
-    const amount = orderAmountCents(pkg, customDomain);
+    const amount = planPriceCents(pkg);
     const event = storage.createEvent({
       id: randomUUID(),
       slug,
@@ -263,7 +265,7 @@ export function registerPlatformRoutes(app: Express) {
       photosJson: "[]",
       hostnames: "",
       desiredDomain,
-      customDomain: customDomain ? 1 : 0,
+      customDomain: includesDomain ? 1 : 0,
       customNotes: notes,
       smtpUser: "",
       smtpPass: "",
@@ -278,7 +280,8 @@ export function registerPlatformRoutes(app: Express) {
       id: randomUUID(),
       eventId: event.id,
       package: pkg,
-      customDomain: customDomain ? 1 : 0,
+      kind: "purchase",
+      customDomain: includesDomain ? 1 : 0,
       desiredDomain,
       notes,
       amountCents: amount,
@@ -299,6 +302,39 @@ export function registerPlatformRoutes(app: Express) {
     });
   });
 
+  async function startCheckout(req: Request, res: Response, event: EventRecord, order: Order, email: string | undefined) {
+    const base = publicBase(req);
+    const success = `${base}/checkout/success?order=${order.id}&session_id={CHECKOUT_SESSION_ID}`;
+    const cancel = `${base}/checkout/cancel?order=${order.id}&slug=${event.slug}`;
+    const stripe = stripeClient();
+    if (!stripe) {
+      return res.json({
+        mock: true,
+        checkoutUrl: `${base}/checkout/success?mock=1&order=${order.id}&slug=${event.slug}`,
+        orderId: order.id,
+        amountCents: order.amountCents,
+        package: order.package,
+      });
+    }
+    try {
+      const checkout = await stripe.checkout.sessions.create({
+        mode: "payment",
+        customer_email: email || undefined,
+        client_reference_id: order.id,
+        metadata: { orderId: order.id, eventId: event.id, kind: order.kind },
+        line_items: checkoutLineItems(order, event.honoree) as any,
+        success_url: success,
+        cancel_url: cancel,
+      });
+      storage.updateOrder(order.id, { stripeSessionId: checkout.id });
+      storage.updateEvent(event.id, { stripeSessionId: checkout.id });
+      res.json({ mock: false, checkoutUrl: checkout.url, orderId: order.id, amountCents: order.amountCents, package: order.package });
+    } catch (err: any) {
+      console.warn("[stripe] checkout failed:", err?.message || err);
+      res.status(502).json({ message: "Stripe couldn't start checkout. Check the API keys and try again." });
+    }
+  }
+
   app.post("/api/billing/checkout", async (req, res) => {
     const event = memberEvent(req);
     const session = currentSession(req);
@@ -311,15 +347,17 @@ export function registerPlatformRoutes(app: Express) {
     }
     let order = storage.latestOrder(event.id);
     if (!order || order.status === "paid") {
+      const plan = normalizePlan(event.package);
       const now = Date.now();
       order = storage.createOrder({
         id: randomUUID(),
         eventId: event.id,
-        package: event.package,
-        customDomain: event.customDomain,
+        package: plan,
+        kind: "purchase",
+        customDomain: plan === "basic" ? 0 : 1,
         desiredDomain: event.desiredDomain,
         notes: event.customNotes,
-        amountCents: event.amountCents || orderAmountCents(event.package === "full_custom" ? "full_custom" : "basic", !!event.customDomain),
+        amountCents: event.amountCents || planPriceCents(plan),
         currency: "usd",
         status: "pending",
         stripeSessionId: null,
@@ -327,34 +365,78 @@ export function registerPlatformRoutes(app: Express) {
         paidAt: null,
       });
     }
-    const base = publicBase(req);
-    const success = `${base}/checkout/success?order=${order.id}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancel = `${base}/checkout/cancel?order=${order.id}&slug=${event.slug}`;
-    const stripe = stripeClient();
-    if (!stripe) {
-      return res.json({
-        mock: true,
-        checkoutUrl: `${base}/checkout/success?mock=1&order=${order.id}&slug=${event.slug}`,
-        orderId: order.id,
-      });
+    await startCheckout(req, res, event, order, sessionEmail(session));
+  });
+
+  app.post("/api/billing/upgrade", async (req, res) => {
+    const event = memberEvent(req);
+    const session = currentSession(req);
+    if (!event || !session || session.role === "super") {
+      return res.status(401).json({ message: "Sign in to continue to checkout." });
     }
-    try {
-      const checkout = await stripe.checkout.sessions.create({
-        mode: "payment",
-        customer_email: sessionEmail(session) || undefined,
-        client_reference_id: order.id,
-        metadata: { orderId: order.id, eventId: event.id },
-        line_items: checkoutLineItems(order, event.honoree) as any,
-        success_url: success,
-        cancel_url: cancel,
-      });
-      storage.updateOrder(order.id, { stripeSessionId: checkout.id });
-      storage.updateEvent(event.id, { stripeSessionId: checkout.id });
-      res.json({ mock: false, checkoutUrl: checkout.url, orderId: order.id });
-    } catch (err: any) {
-      console.warn("[stripe] checkout failed:", err?.message || err);
-      res.status(502).json({ message: "Stripe couldn't start checkout. Check the API keys and try again." });
+    if (event.isLegacyRoot || event.isDemo) {
+      return res.status(400).json({ message: "This site already includes every feature." });
     }
+    const target = normalizePlan(req.body?.package);
+    const quote = describePlan(event).upgrades.find((row) => row.plan === target);
+    if (!quote || quote.amountCents <= 0) {
+      return res.status(400).json({ message: "Choose a higher plan." });
+    }
+    const desiredDomain = cleanDomain(cleanText(req.body?.desiredDomain, 120)) || event.desiredDomain;
+    if (desiredDomain && !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(desiredDomain)) {
+      return res.status(400).json({ message: "That domain doesn't look right. Example: mariaandluis.com" });
+    }
+    const now = Date.now();
+    if (!event.paid) {
+      storage.updateEvent(event.id, {
+        package: target,
+        customDomain: target === "basic" ? 0 : 1,
+        desiredDomain,
+        amountCents: quote.amountCents,
+      });
+      const pending = storage.latestOrder(event.id);
+      const order = pending && pending.status !== "paid"
+        ? storage.updateOrder(pending.id, {
+            package: target,
+            kind: "purchase",
+            customDomain: target === "basic" ? 0 : 1,
+            desiredDomain,
+            amountCents: quote.amountCents,
+          })
+        : storage.createOrder({
+            id: randomUUID(),
+            eventId: event.id,
+            package: target,
+            kind: "purchase",
+            customDomain: target === "basic" ? 0 : 1,
+            desiredDomain,
+            notes: event.customNotes,
+            amountCents: quote.amountCents,
+            currency: "usd",
+            status: "pending",
+            stripeSessionId: null,
+            createdAt: now,
+            paidAt: null,
+          });
+      const fresh = storage.getEvent(event.id) || event;
+      return startCheckout(req, res, fresh, order, sessionEmail(session));
+    }
+    const order = storage.createOrder({
+      id: randomUUID(),
+      eventId: event.id,
+      package: target,
+      kind: "upgrade",
+      customDomain: 1,
+      desiredDomain,
+      notes: event.customNotes,
+      amountCents: quote.amountCents,
+      currency: "usd",
+      status: "pending",
+      stripeSessionId: null,
+      createdAt: now,
+      paidAt: null,
+    });
+    await startCheckout(req, res, event, order, sessionEmail(session));
   });
 
   app.post("/api/billing/confirm", async (req, res) => {
@@ -574,6 +656,7 @@ export function registerPlatformRoutes(app: Express) {
       };
     });
     const billable = rows.filter((row) => !row.isDemo);
+    const paidRows = billable.filter((row) => row.paid || row.isLegacyRoot);
     // Legacy admin email lives on the settings row, not event_hosts.
     const settings = storage.getSettings();
     for (const row of rows) {
@@ -583,7 +666,7 @@ export function registerPlatformRoutes(app: Express) {
       events: rows,
       totals: {
         events: billable.length,
-        revenueCents: billable.reduce((sum, row) => sum + row.amountCents, 0),
+        revenueCents: paidRows.reduce((sum, row) => sum + row.amountCents, 0),
         invited: billable.reduce((sum, row) => sum + row.invited, 0),
       },
     });

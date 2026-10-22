@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { api, setAuthToken } from "@/lib/api";
 import { setSiteContext } from "@/lib/event-scope";
-import { slugify } from "@shared/platform";
+import { slugify, planPriceCents, PLAN_PLUS_NAME, type EventPackage } from "@shared/platform";
 import { useLanguage } from "@/lib/language";
 import { BrandShell, LanguageToggle, Wordmark } from "@/components/brand-shell";
 
@@ -36,15 +36,22 @@ type Draft = {
   photoUploadUrl: string;
   hotelName: string;
   hotelAddress: string;
-  package: "basic" | "full_custom";
-  customDomain: boolean;
+  package: EventPackage;
   desiredDomain: string;
   notes: string;
 };
 
+function initialPackage(): EventPackage {
+  const q = new URLSearchParams(window.location.search);
+  const raw = q.get("package");
+  if (raw === "plus" || raw === "full_custom") return raw;
+  if (q.get("domain") === "1") return "plus";
+  return "basic";
+}
+
 function initialDraft(): Draft {
   const q = new URLSearchParams(window.location.search);
-  const pkg = q.get("package") === "full_custom" ? "full_custom" : "basic";
+  const pkg = initialPackage();
   const requested = q.get("template");
   const template: StarterTemplate = STARTER_TEMPLATES.includes(requested as StarterTemplate) ? (requested as StarterTemplate) : "elegant";
   return {
@@ -74,7 +81,6 @@ function initialDraft(): Draft {
     hotelName: "",
     hotelAddress: "",
     package: pkg,
-    customDomain: q.get("domain") === "1",
     desiredDomain: "",
     notes: "",
   };
@@ -94,10 +100,7 @@ export default function Wizard() {
   const [busy, setBusy] = useState(false);
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
 
-  const price = useMemo(() => {
-    if (draft.package === "full_custom") return 250;
-    return 100 + (draft.customDomain ? 25 : 0);
-  }, [draft.package, draft.customDomain]);
+  const price = useMemo(() => planPriceCents(draft.package) / 100, [draft.package]);
 
   function next() {
     setError(null);
@@ -112,8 +115,8 @@ export default function Wizard() {
     if (step === 3 && draft.package === "full_custom" && draft.notes.trim().length < 8) {
       return setError(tr("Add a note about the custom design.", "Agregue una nota sobre el diseño."));
     }
-    if (step === 3 && draft.customDomain && draft.package === "basic" && !draft.desiredDomain.trim()) {
-      return setError(tr("What domain should we buy?", "¿Qué dominio compramos?"));
+    if (step === 3 && draft.package !== "basic" && draft.desiredDomain.trim() && !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(draft.desiredDomain.trim())) {
+      return setError(tr("That domain doesn't look right. Example: mariaandluis.com", "Ese dominio no parece correcto. Ejemplo: mariaandluis.com"));
     }
     setStep((s) => Math.min(4, s + 1));
   }
@@ -140,7 +143,7 @@ export default function Wizard() {
             ? { time: draft.receptionTime, title: "Reception", detail: draft.receptionVenue }
             : null,
         ].filter(Boolean),
-        customDomain: draft.package === "basic" && draft.customDomain,
+        customDomain: draft.package !== "basic",
       });
       setSiteContext({ slug: res.event.slug, mode: "platform", legacyCopy: false });
       setAuthToken(res.token);
@@ -333,26 +336,29 @@ export default function Wizard() {
             <div className="space-y-3">
               <h1 className="brand-display text-3xl">{tr("Package", "Paquete")}</h1>
               <PackagePick
-                active={draft.package === "basic" && !draft.customDomain}
-                title={tr("Basic · $100", "Básico · $100")}
-                detail={tr("Template site, dashboard, guest list, bilingual page.", "Sitio con plantilla, tablero, lista y página bilingüe.")}
-                onClick={() => set({ package: "basic", customDomain: false })}
+                testId="button-package-basic"
+                active={draft.package === "basic"}
+                title={tr(`Basic · $${planPriceCents("basic") / 100}`, `Básico · $${planPriceCents("basic") / 100}`)}
+                detail={tr("You pick a template, upload guests, and manage RSVPs yourself.", "Usted elige la plantilla, sube invitados y maneja las confirmaciones.")}
+                onClick={() => set({ package: "basic", desiredDomain: "" })}
               />
               <PackagePick
-                active={draft.package === "basic" && draft.customDomain}
-                title={tr("Basic + domain · $125", "Básico + dominio · $125")}
-                detail={tr("We buy the domain for a year and connect it for you.", "Compramos el dominio por un año y lo conectamos.")}
-                onClick={() => set({ package: "basic", customDomain: true })}
+                testId="button-package-plus"
+                active={draft.package === "plus"}
+                title={`${PLAN_PLUS_NAME[es ? "es" : "en"]} · $${planPriceCents("plus") / 100}`}
+                detail={tr("Your own domain for a year, plus text and email to every guest.", "Su dominio por un año, más texto y correo a cada invitado.")}
+                onClick={() => set({ package: "plus" })}
               />
               <PackagePick
+                testId="button-package-full_custom"
                 active={draft.package === "full_custom"}
-                title={tr("Full custom · $250", "Diseño a medida · $250")}
-                detail={tr("We design it by hand. Tell us what you want.", "Lo diseñamos a mano. Cuéntenos qué desea.")}
-                onClick={() => set({ package: "full_custom", customDomain: false })}
+                title={tr(`Full custom · $${planPriceCents("full_custom") / 100}`, `Diseño a medida · $${planPriceCents("full_custom") / 100}`)}
+                detail={tr("Everything in Plus, with a design we make for you.", "Todo lo de Plus, con un diseño que hacemos nosotros.")}
+                onClick={() => set({ package: "full_custom" })}
               />
-              {(draft.customDomain || draft.package === "full_custom") && (
+              {draft.package !== "basic" && (
                 <label className="block text-sm">
-                  {tr("Desired domain", "Dominio deseado")}
+                  {tr("Desired domain", "Dominio deseado")} <span className="text-[#526072]">({tr("optional", "opcional")})</span>
                   <input className={`${input} mt-1`} placeholder="mariaandluis.com" value={draft.desiredDomain} onChange={(e) => set({ desiredDomain: e.target.value })} data-testid="input-wizard-domain" />
                 </label>
               )}
@@ -434,11 +440,13 @@ function TemplatePick({
 }
 
 function PackagePick({
+  testId,
   active,
   title,
   detail,
   onClick,
 }: {
+  testId: string;
   active: boolean;
   title: string;
   detail: string;
@@ -449,6 +457,7 @@ function PackagePick({
       type="button"
       onClick={onClick}
       className={`w-full rounded-xl border px-4 py-4 text-left ${active ? "border-[#142033] bg-[#f3f5f8]" : "border-[#d7dee7]"}`}
+      data-testid={testId}
     >
       <div className="font-medium">{title}</div>
       <div className="text-sm text-[#526072]">{detail}</div>

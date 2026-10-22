@@ -4,10 +4,13 @@
 export const BRAND_NAME = "RSVP Sites by Mission";
 
 export const PRICE_CENTS = {
-  basic: 10_000,
-  domain: 2_500,
+  basic: 2_500,
+  plus: 10_000,
   fullCustom: 25_000,
 } as const;
+
+/** Middle plan name. Change these two strings to rename it everywhere it appears. */
+export const PLAN_PLUS_NAME = { en: "Plus", es: "Plus" } as const;
 
 export const LEAH_EVENT_ID = "leah";
 
@@ -27,7 +30,84 @@ export const RESERVED_SLUGS = new Set([
   "src",
 ]);
 
-export type EventPackage = "basic" | "full_custom";
+export type EventPackage = "basic" | "plus" | "full_custom";
+
+export function normalizePlan(raw: unknown): EventPackage {
+  if (raw === "plus" || raw === "full_custom") return raw;
+  return "basic";
+}
+
+export function planPriceCents(plan: EventPackage): number {
+  if (plan === "full_custom") return PRICE_CENTS.fullCustom;
+  if (plan === "plus") return PRICE_CENTS.plus;
+  return PRICE_CENTS.basic;
+}
+
+export function planLabel(plan: EventPackage, lang: "en" | "es" = "en"): string {
+  if (plan === "full_custom") return lang === "es" ? "Diseño a medida" : "Full custom";
+  if (plan === "plus") return PLAN_PLUS_NAME[lang];
+  return lang === "es" ? "Básico" : "Basic";
+}
+
+type PlanSource = {
+  package?: string | null;
+  isLegacyRoot?: number | boolean | null;
+  isDemo?: number | boolean | null;
+  customDomain?: number | boolean | null;
+  paid?: number | boolean | null;
+};
+
+/** Leah and the sample sites include every feature. An older Basic order that already bought a domain is treated as Plus. */
+export function effectivePlan(event: PlanSource): EventPackage {
+  if (event.isLegacyRoot || event.isDemo) return "full_custom";
+  const plan = normalizePlan(event.package);
+  if (plan === "basic" && event.customDomain) return "plus";
+  return plan;
+}
+
+export type PlanFeature = "textBlast" | "emailBlast" | "customDomain";
+
+export function planAllows(event: PlanSource, _feature: PlanFeature): boolean {
+  return effectivePlan(event) !== "basic";
+}
+
+export function upgradeDifferenceCents(from: EventPackage, to: EventPackage): number {
+  return Math.max(0, planPriceCents(to) - planPriceCents(from));
+}
+
+export function describePlan(event: PlanSource) {
+  const plan = effectivePlan(event);
+  const paid = !!event.paid || !!event.isLegacyRoot;
+  const locked = !!event.isLegacyRoot || !!event.isDemo;
+  const targets: EventPackage[] = locked
+    ? []
+    : plan === "basic"
+      ? ["plus", "full_custom"]
+      : plan === "plus"
+        ? ["full_custom"]
+        : [];
+  return {
+    plan,
+    name: planLabel(plan),
+    textBlast: plan !== "basic",
+    emailBlast: plan !== "basic",
+    customDomain: plan !== "basic",
+    upgrades: targets.map((target) => ({
+      plan: target,
+      name: planLabel(target),
+      amountCents: paid ? upgradeDifferenceCents(plan, target) : planPriceCents(target),
+    })),
+  };
+}
+
+export function upgradeRequired(feature: "textBlast" | "emailBlast") {
+  const name = PLAN_PLUS_NAME.en;
+  const message =
+    feature === "textBlast"
+      ? `Hit em up is included with ${name}. Upgrade to text every guest.`
+      : `Email everyone is included with ${name}. Upgrade to email every guest.`;
+  return { code: "upgrade_required" as const, feature, message, upgradeTo: "plus" as const };
+}
 export const EVENT_TEMPLATES = ["elegant", "fiesta", "minimal", "garden", "noche", "confetti", "quince", "wedding"] as const;
 export type EventTemplate = (typeof EVENT_TEMPLATES)[number];
 
@@ -105,9 +185,8 @@ export type PublicEvent = {
   customDomain: boolean;
 };
 
-export function orderAmountCents(pkg: EventPackage, customDomain: boolean): number {
-  if (pkg === "full_custom") return PRICE_CENTS.fullCustom;
-  return PRICE_CENTS.basic + (customDomain ? PRICE_CENTS.domain : 0);
+export function orderAmountCents(pkg: EventPackage): number {
+  return planPriceCents(normalizePlan(pkg));
 }
 
 /** RSVPs stay open through `closesOn` (YYYY-MM-DD) in Pacific time, and close the next day. */

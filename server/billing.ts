@@ -1,7 +1,7 @@
 import Stripe from "stripe";
 import type { Order } from "@shared/schema";
 import { storage } from "./storage";
-import { PRICE_CENTS, type EventPackage } from "@shared/platform";
+import { planLabel, planPriceCents, normalizePlan, type EventPackage } from "@shared/platform";
 
 let client: Stripe | null | undefined;
 
@@ -29,21 +29,24 @@ function priceData(name: string, unitAmount: number) {
 
 export function checkoutLineItems(order: Order, honoree: string) {
   const who = honoree || "your celebration";
-  if (order.package === "full_custom") {
+  const plan = normalizePlan(order.package);
+  const label = planLabel(plan);
+  if (order.kind === "upgrade") {
+    return [priceData(`Upgrade to ${label} — ${who}`, order.amountCents)];
+  }
+  if (plan === "full_custom") {
     const price = (process.env.STRIPE_PRICE_CUSTOM || "").trim();
     if (price) return [{ quantity: 1, price }];
-    return [priceData(`Full custom invitation — ${who}`, PRICE_CENTS.fullCustom)];
+    return [priceData(`Full custom invitation — ${who}`, planPriceCents("full_custom"))];
   }
-  const items: ReturnType<typeof priceData>[] = [];
+  if (plan === "plus") {
+    const price = (process.env.STRIPE_PRICE_PLUS || "").trim();
+    if (price) return [{ quantity: 1, price }];
+    return [priceData(`${label} invitation — ${who}`, planPriceCents("plus"))];
+  }
   const basicPrice = (process.env.STRIPE_PRICE_BASIC || "").trim();
-  if (basicPrice) items.push({ quantity: 1, price: basicPrice } as any);
-  else items.push(priceData(`RSVP website — ${who}`, PRICE_CENTS.basic));
-  if (order.customDomain) {
-    const domainPrice = (process.env.STRIPE_PRICE_DOMAIN || "").trim();
-    if (domainPrice) items.push({ quantity: 1, price: domainPrice } as any);
-    else items.push(priceData("Custom domain for one year", PRICE_CENTS.domain));
-  }
-  return items;
+  if (basicPrice) return [{ quantity: 1, price: basicPrice }];
+  return [priceData(`RSVP website — ${who}`, planPriceCents("basic"))];
 }
 
 /** Idempotent. Safe from both the webhook and the success-page confirm. */
@@ -61,11 +64,17 @@ export function markOrderPaid(orderId: string, sessionId?: string | null): Order
     storage.updateOrder(order.id, { stripeSessionId: sid });
   }
   const event = storage.getEvent(order.eventId);
-  if (event && !event.paid) {
+  if (event && order.status !== "paid") {
+    const target = normalizePlan(order.package);
+    const upgrading = !!event.paid && order.kind === "upgrade";
     storage.updateEvent(event.id, {
       paid: 1,
+      package: target,
+      customDomain: target === "basic" ? event.customDomain : 1,
+      desiredDomain: order.desiredDomain || event.desiredDomain,
       stripeSessionId: sid,
-      amountCents: order.amountCents,
+      amountCents: upgrading ? event.amountCents + order.amountCents : order.amountCents,
+      customNotes: order.notes || event.customNotes,
     });
   }
   return storage.getOrder(order.id);
@@ -90,5 +99,5 @@ export function markPaidFromSession(session: {
 }
 
 export function packageLabel(pkg: EventPackage): string {
-  return pkg === "full_custom" ? "Full custom" : "Basic";
+  return planLabel(normalizePlan(pkg));
 }

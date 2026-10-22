@@ -1,6 +1,7 @@
-import { guests, responses, admins, settings, messageLogs, events, eventHosts, orders, superAdmins } from "@shared/schema";
+import { guests, responses, admins, settings, messageLogs, emailLogs, events, eventHosts, orders, superAdmins } from "@shared/schema";
 import type {
   MessageLog,
+  EmailLog,
   Guest,
   GuestRow,
   InsertGuest,
@@ -208,6 +209,20 @@ for (const stmt of [
   `CREATE INDEX IF NOT EXISTS idx_message_logs_event ON message_logs (event_id)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_event_hosts_event_email ON event_hosts (event_id, email)`,
   `CREATE INDEX IF NOT EXISTS idx_orders_event ON orders (event_id)`,
+  `ALTER TABLE orders ADD COLUMN kind TEXT NOT NULL DEFAULT 'purchase'`,
+  `CREATE TABLE IF NOT EXISTS email_logs (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL DEFAULT '',
+    guest_id TEXT NOT NULL DEFAULT '',
+    blast_id TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    subject TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'sent',
+    error TEXT NOT NULL DEFAULT '',
+    sent_at INTEGER NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_email_logs_event ON email_logs (event_id, sent_at)`,
 ]) {
   try {
     sqlite.exec(stmt);
@@ -219,6 +234,21 @@ for (const stmt of [
       console.warn("[db] migration skipped:", msg);
     }
   }
+}
+
+try {
+  // The old Basic + $25 domain add-on is the Plus plan now. Paid totals stay as recorded.
+  sqlite.prepare(
+    `UPDATE events SET package = 'plus' WHERE package = 'basic' AND custom_domain = 1 AND is_demo = 0 AND is_legacy_root = 0`,
+  ).run();
+  sqlite.prepare(
+    `UPDATE events SET amount_cents = 10000 WHERE package = 'plus' AND paid = 0 AND is_demo = 0 AND amount_cents = 12500`,
+  ).run();
+  sqlite.prepare(
+    `UPDATE orders SET package = 'plus', amount_cents = 10000 WHERE status = 'pending' AND package = 'basic' AND custom_domain = 1 AND amount_cents = 12500`,
+  ).run();
+} catch (err: any) {
+  console.warn("[db] plan migration skipped:", err?.message || err);
 }
 
 /**
@@ -746,8 +776,41 @@ export class Storage {
     return out;
   }
 
-  /** Count + lastSentAt for a single guest — avoids scanning every log
-   *  row on save when we only need one guest's stats. */
+  logEmail(row: {
+    eventId: string;
+    guestId: string;
+    blastId: string;
+    email: string;
+    subject: string;
+    body: string;
+    status: string;
+    error?: string;
+  }): EmailLog {
+    return db
+      .insert(emailLogs)
+      .values({
+        id: randomUUID(),
+        eventId: row.eventId,
+        guestId: row.guestId,
+        blastId: row.blastId,
+        email: row.email,
+        subject: row.subject,
+        body: row.body,
+        status: row.status,
+        error: row.error || "",
+        sentAt: Date.now(),
+      })
+      .returning()
+      .get();
+  }
+
+  /** How many email-everyone sends this event started since `since` (ms). */
+  emailBlastsSince(eventId: string, since: number): number {
+    const rows = db.select().from(emailLogs).where(eq(emailLogs.eventId, eventId)).all();
+    const ids = new Set(rows.filter((row) => row.sentAt >= since).map((row) => row.blastId));
+    return ids.size;
+  }
+
   messageCountForGuest(guestId: string): { count: number; lastSentAt: number | null } {
     const rows = db
       .select()

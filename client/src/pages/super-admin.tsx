@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, setAuthToken } from "@/lib/api";
+import { normalizePlan, planLabel } from "@shared/platform";
 
 type Row = {
   id: string;
@@ -141,7 +142,7 @@ export default function SuperAdmin() {
                   </td>
                   <td className="px-3 py-3 text-xs">{row.hostEmail || "—"}</td>
                   <td className="px-3 py-3">
-                    <div>{row.package === "full_custom" ? "Full custom" : "Basic"}</div>
+                    <div>{planLabel(normalizePlan(row.package))}</div>
                     <div className="text-xs text-neutral-500">{row.isDemo ? "Sample" : `$${(row.amountCents / 100).toFixed(0)}`} · {row.template}</div>
                   </td>
                   <td className="px-3 py-3">{row.isDemo ? "Sample" : row.paid ? "Paid" : "Unpaid"}</td>

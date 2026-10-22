@@ -19,6 +19,7 @@ import {
   ExternalLink,
   RefreshCw,
   MessageSquare,
+  Lock,
   Send,
   SkipForward,
   Check,
@@ -64,6 +65,14 @@ type Status = {
     package: string;
     template: string;
     publicPath: string;
+    features?: {
+      plan: string;
+      name: string;
+      textBlast: boolean;
+      emailBlast: boolean;
+      customDomain: boolean;
+      upgrades: { plan: string; name: string; amountCents: number }[];
+    };
   } | null;
 };
 
@@ -846,6 +855,140 @@ function valueForSort(
   }
 }
 
+function EmailEveryoneDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const { toast } = useToast();
+  const [subject, setSubject] = useState("Your invitation, {Name For Text}");
+  const [body, setBody] = useState(
+    "Hi {Name For Text}, here is the RSVP link for your party of {Total Invites}: {RSVP Link}",
+  );
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) setResult(null);
+  }, [open]);
+
+  async function send() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const r = await api<{ sent: number; failed: number; skipped: number }>("POST", "/api/admin/email-blast", {
+        subject,
+        body,
+      });
+      const line = `Sent ${r.sent}. Failed ${r.failed}. Skipped ${r.skipped}.`;
+      setResult(line);
+      toast({ title: line });
+    } catch (err: any) {
+      toast({ title: err.message || "Email failed", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Email everyone</DialogTitle>
+          <DialogDescription>
+            One email to every guest who has a real address, sent from the Gmail app password in Settings.
+            Placeholders: {"{Name For Text}"}, {"{First Name}"}, {"{Total Invites}"}, {"{RSVP Link}"}.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field label="Subject">
+            <Input value={subject} onChange={(e) => setSubject(e.target.value)} data-testid="input-email-subject" />
+          </Field>
+          <Field label="Message">
+            <Textarea rows={6} value={body} onChange={(e) => setBody(e.target.value)} data-testid="input-email-body" />
+          </Field>
+          {result && <p className="text-sm text-neutral-600" data-testid="text-email-result">{result}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+          <Button onClick={send} disabled={busy} data-testid="button-email-send">
+            {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Send
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UpgradeDialog({
+  open,
+  onOpenChange,
+  upgrades,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  upgrades: { plan: string; name: string; amountCents: number }[];
+}) {
+  const { toast } = useToast();
+  const [domain, setDomain] = useState("");
+  const [busyPlan, setBusyPlan] = useState<string | null>(null);
+
+  async function choose(plan: string) {
+    setBusyPlan(plan);
+    try {
+      const r = await api<{ checkoutUrl?: string; paid?: boolean }>("POST", "/api/billing/upgrade", {
+        package: plan,
+        desiredDomain: domain,
+      });
+      if (r.checkoutUrl) {
+        window.location.href = r.checkoutUrl;
+        return;
+      }
+      toast({ title: "This site already includes that plan." });
+      onOpenChange(false);
+    } catch (err: any) {
+      toast({ title: err.message || "Upgrade failed", variant: "destructive" });
+    } finally {
+      setBusyPlan(null);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Upgrade this site</DialogTitle>
+          <DialogDescription>
+            Hit em up and email everyone are included with Plus, along with a domain we buy for a year.
+            If you already paid, checkout charges only the difference.
+          </DialogDescription>
+        </DialogHeader>
+        <Field label="Desired domain" hint="Optional. Example: mariaandluis.com">
+          <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="mariaandluis.com" data-testid="input-upgrade-domain" />
+        </Field>
+        <div className="mt-3 space-y-2">
+          {upgrades.length === 0 && <p className="text-sm text-neutral-600">This site already includes every feature.</p>}
+          {upgrades.map((row) => (
+            <Button
+              key={row.plan}
+              className="w-full justify-between"
+              disabled={busyPlan !== null}
+              onClick={() => choose(row.plan)}
+              data-testid={`button-upgrade-${row.plan}`}
+            >
+              <span>Upgrade to {row.name}</span>
+              <span>${(row.amountCents / 100).toFixed(0)}</span>
+            </Button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void }) {
   const { toast } = useToast();
   const [guests, setGuests] = useState<GuestWithResponse[]>([]);
@@ -853,6 +996,12 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   const [hitEmUpOpen, setHitEmUpOpen] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const features = status.event?.features;
+  const canText = features ? features.textBlast : !!status.event?.isLegacyRoot;
+  const canEmail = features ? features.emailBlast : !!status.event?.isLegacyRoot;
+  const upgrades = features?.upgrades || [];
   const [statusFilter, setStatusFilter] = useState<"all" | "attending" | "declined" | "pending">(
     "all",
   );
@@ -1558,12 +1707,22 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
                 <Button
                   size="sm"
                   className="bg-[hsl(346_37%_56%)] text-white hover:bg-[hsl(346_45%_45%)]"
-                  onClick={() => setHitEmUpOpen(true)}
-                  disabled={rows.length === 0}
-                  data-testid="button-hit-em-up"
+                  onClick={() => (canText ? setHitEmUpOpen(true) : setUpgradeOpen(true))}
+                  disabled={canText && rows.length === 0}
+                  data-testid={canText ? "button-hit-em-up" : "button-hit-em-up-locked"}
                 >
-                  <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+                  {canText ? <MessageSquare className="mr-1.5 h-3.5 w-3.5" /> : <Lock className="mr-1.5 h-3.5 w-3.5" />}
                   Hit em up ({rows.length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => (canEmail ? setEmailOpen(true) : setUpgradeOpen(true))}
+                  disabled={canEmail && rows.length === 0}
+                  data-testid={canEmail ? "button-email-everyone" : "button-email-everyone-locked"}
+                >
+                  {canEmail ? <Mail className="mr-1.5 h-3.5 w-3.5" /> : <Lock className="mr-1.5 h-3.5 w-3.5" />}
+                  Email everyone
                 </Button>
                 <Button size="sm" variant="outline" onClick={downloadCsv} data-testid="button-download-csv">
                   <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -2284,6 +2443,8 @@ function Dashboard({ status, onLogout }: { status: Status; onLogout: () => void 
         filterLabel={statusFilter}
         onLogged={() => load()}
       />
+      <EmailEveryoneDialog open={emailOpen} onOpenChange={setEmailOpen} />
+      <UpgradeDialog open={upgradeOpen} onOpenChange={setUpgradeOpen} upgrades={upgrades} />
     </div>
   );
 }

@@ -118,6 +118,21 @@ export const messageLogs = sqliteTable("message_logs", {
 });
 export type MessageLog = typeof messageLogs.$inferSelect;
 
+/** One row per guest on an email-everyone send. status is sent, failed, or skipped. */
+export const emailLogs = sqliteTable("email_logs", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().default(""),
+  guestId: text("guest_id").notNull().default(""),
+  blastId: text("blast_id").notNull().default(""),
+  email: text("email").notNull().default(""),
+  subject: text("subject").notNull().default(""),
+  body: text("body").notNull().default(""),
+  status: text("status").notNull().default("sent"),
+  error: text("error").notNull().default(""),
+  sentAt: integer("sent_at").notNull(),
+});
+export type EmailLog = typeof emailLogs.$inferSelect;
+
 export const admins = sqliteTable("admins", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
@@ -133,7 +148,7 @@ export const events = sqliteTable("events", {
   isDemo: integer("is_demo").notNull().default(0),
   /** draft (preview only) or active (public). */
   status: text("status").notNull().default("draft"),
-  /** basic ($100) or full_custom ($250, fulfilled by hand). */
+  /** basic ($25), plus ($100, domain and messages), or full_custom ($250). */
   package: text("package").notNull().default("basic"),
   /** quince (floral) or wedding (elegant). */
   template: text("template").notNull().default("quince"),
@@ -213,6 +228,8 @@ export const orders = sqliteTable("orders", {
   id: text("id").primaryKey(),
   eventId: text("event_id").notNull(),
   package: text("package").notNull(),
+  /** purchase or upgrade. An upgrade charges the difference and then changes the event plan. */
+  kind: text("kind").notNull().default("purchase"),
   customDomain: integer("custom_domain").notNull().default(0),
   desiredDomain: text("desired_domain").notNull().default(""),
   notes: text("notes").notNull().default(""),
