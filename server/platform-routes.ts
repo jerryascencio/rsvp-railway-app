@@ -144,7 +144,11 @@ export function registerPlatformRoutes(app: Express) {
     res.json({
       mock: !stripeConfigured(),
       publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
-      prices: { basic: 100, domain: 25, fullCustom: 250 },
+      prices: {
+        basic: planPriceCents("basic") / 100,
+        plus: planPriceCents("plus") / 100,
+        fullCustom: planPriceCents("full_custom") / 100,
+      },
     });
   });
 

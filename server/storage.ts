@@ -27,6 +27,8 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { eq } from "drizzle-orm";
 import { randomUUID, randomBytes } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 
 const dbPath = process.env.DATABASE_PATH || "./data.db";
 const sqlite = new Database(dbPath);
@@ -1062,17 +1064,29 @@ export class Storage {
 export const storage = new Storage();
 
 /**
- * The plan-pricing check created one paid Basic draft on the platform service.
- * Remove it on boot, with the same guards as Studio delete. A missing row is a no-op.
- * Leah's event and sample sites are never matched.
+ * One-shot removal of platform test signups. Same guards as Studio delete.
+ * A missing row is a no-op. Leah's event and sample sites are never matched.
  */
-function removePricingCheckEvent() {
-  const slug = "pricing-check-1792661008976";
+function removeNamedTestEvent(slug: string) {
   const event = storage.getEventBySlug(slug);
   if (!event || event.isLegacyRoot || event.isDemo || event.id === LEAH_EVENT_ID || event.slug === "leah") return;
+  const orders = sqlite
+    .prepare(
+      `SELECT kind, package, status, amount_cents AS amountCents FROM orders WHERE event_id = ?`,
+    )
+    .all(event.id);
+  console.log(
+    "[db] removing test event",
+    slug,
+    JSON.stringify({ paid: event.paid, package: event.package, amountCents: event.amountCents, orders }),
+  );
   const removed = storage.deleteEvent(event.id);
+  const dbPath = process.env.DATABASE_PATH || "./data.db";
+  const root = process.env.UPLOAD_DIR || path.resolve(path.dirname(dbPath), "uploads");
+  fs.rmSync(path.join(root, event.id), { recursive: true, force: true });
   console.log("[db] removed test event", slug, JSON.stringify(removed));
 }
-removePricingCheckEvent();
+removeNamedTestEvent("pricing-check-1792661008976");
+removeNamedTestEvent("stripe-test-1792699025");
 
 seedDemoEvents(storage);
