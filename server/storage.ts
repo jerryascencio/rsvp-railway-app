@@ -1061,4 +1061,18 @@ export class Storage {
 
 export const storage = new Storage();
 
+/**
+ * The plan-pricing check created one paid Basic draft on the platform service.
+ * Remove it on boot, with the same guards as Studio delete. A missing row is a no-op.
+ * Leah's event and sample sites are never matched.
+ */
+function removePricingCheckEvent() {
+  const slug = "pricing-check-1792661008976";
+  const event = storage.getEventBySlug(slug);
+  if (!event || event.isLegacyRoot || event.isDemo || event.id === LEAH_EVENT_ID || event.slug === "leah") return;
+  const removed = storage.deleteEvent(event.id);
+  console.log("[db] removed test event", slug, JSON.stringify(removed));
+}
+removePricingCheckEvent();
+
 seedDemoEvents(storage);
